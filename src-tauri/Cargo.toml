@@ -1,0 +1,34 @@
+[package]
+name = "md-plus"
+version = "0.1.0"
+description = "MD Plus — çevrimdışı Markdown okuyucu ve yazıcı"
+edition = "2021"
+
+[lib]
+name = "md_plus_lib"
+crate-type = ["staticlib", "cdylib", "rlib"]
+
+[build-dependencies]
+tauri-build = { version = "2", features = [] }
+
+[dependencies]
+tauri = { version = "2", features = ["protocol-asset"] }
+tauri-plugin-fs = "2"
+tauri-plugin-dialog = "2"
+# The only reason the app can reach a network at all. Its scope is pinned in
+# capabilities/default.json to exactly three hosts: the local Ollama, Gemini,
+# and Anthropic.
+tauri-plugin-http = "2"
+# Shell access is scoped in capabilities; the distributed app grants it no
+# permission to execute anything.
+tauri-plugin-shell = "2"
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+
+# PDF is produced by the WebView itself, so the page on paper is the page the
+# writer saw. Reaching its PrintToPdf needs the WebView2 bindings directly —
+# Tauri does not surface it. Same versions Tauri already links, so nothing is
+# duplicated.
+[target.'cfg(windows)'.dependencies]
+webview2-com = "0.38"
+windows = { version = "0.61", features = ["Win32_Foundation"] }
