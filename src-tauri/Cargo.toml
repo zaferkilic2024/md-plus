@@ -1,6 +1,6 @@
 [package]
 name = "md-plus"
-version = "0.1.0"
+version = "0.2.0"
 description = "MD Plus — çevrimdışı Markdown okuyucu ve yazıcı"
 edition = "2021"
 

@@ -1,6 +1,6 @@
 {
   "name": "md-plus",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "license": "MIT",
   "private": true,
   "type": "module",
@@ -10,7 +10,7 @@
     "tauri": "tauri",
     "app": "tauri dev",
     "app:build": "tauri build",
-    "test": "node test/cipa.test.mjs && node test/isaret.test.mjs && node test/arama.test.mjs && node test/son.test.mjs && node test/uyari.test.mjs && node test/oneri.test.mjs"
+    "test": "node test/cipa.test.mjs && node test/isaret.test.mjs && node test/arama.test.mjs && node test/son.test.mjs && node test/uyari.test.mjs && node test/oneri.test.mjs && node test/i18n.test.mjs && node test/dil.test.mjs"
   },
   "devDependencies": {
     "@tauri-apps/cli": "^2.11.4",

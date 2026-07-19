@@ -15,6 +15,8 @@
 // power bar hold their size, the quadrants take the slack, and a short window
 // scrolls the canvas rather than clipping a card.
 
+import { t } from "./i18n.js";
+
 const svg = (paths, size = 19) =>
   `<svg width="${size}" height="${size}" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.55" stroke-linecap="round" stroke-linejoin="round">${paths}</svg>`;
 
@@ -24,21 +26,21 @@ export function createEmptyState({ onOpen, onNew, recents }) {
   empty.innerHTML = `
     <div class="ic">
       <div class="marka"><span>md</span><i>+</i></div>
-      <h2>Yazın, okuyun, düzenleyin. Hepsi tek pencerede.</h2>
-      <p class="spot">Markdown'ın gücü, işaretlerin ötesinde. Sadece içeriğe odaklanın.</p>
+      <h2>${t("empty.title")}</h2>
+      <p class="spot">${t("empty.spot")}</p>
 
       <div class="girisler">
         <div class="giris" data-act="new">
           ${svg('<path d="M12 5v14M5 12h14"/>', 17)}
-          <span class="et">Yeni belge</span>
+          <span class="et">${t("empty.new")}</span>
         </div>
         <div class="ayrac-d"></div>
         <div class="giris" data-act="open">
           ${svg('<path d="M3 7a1 1 0 0 1 1-1h5l2 2h8a1 1 0 0 1 1 1v9a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1z"/>', 17)}
-          <span class="et">Belge aç</span>
+          <span class="et">${t("empty.open")}</span>
         </div>
       </div>
-      <p class="empty-hint">…ya da bir <code>.md</code> dosyasını buraya sürükleyin.</p>
+      <p class="empty-hint">${t("empty.hintPre")}<code>.md</code>${t("empty.hintPost")}</p>
     </div>`;
 
   const ic = empty.querySelector(".ic");
@@ -55,19 +57,19 @@ export function createEmptyState({ onOpen, onNew, recents }) {
       `<div class="kartlar">
         <div class="kart">
           <div class="kart-ikon">${svg('<rect x="4" y="8" width="11" height="11" rx="1.4"/><path d="M9 8V5.5a1 1 0 0 1 1-1h9a1 1 0 0 1 1 1v10a1 1 0 0 1-1 1h-2"/>', 34)}</div>
-          <div><h3>Çok sekmeli çalışma</h3><p>Bütün belgeleriniz tek pencerede, sekme sekme elinizin altında.</p></div>
+          <div><h3>${t("empty.card1.title")}</h3><p>${t("empty.card1.body")}</p></div>
         </div>
         <div class="kart">
           <div class="kart-ikon">${svg('<path d="M4 12h11"/><path d="M11 8l4 4-4 4"/><path d="M19.5 5v14"/>', 34)}</div>
-          <div><h3>Belgeler arası aktarma</h3><p>Bir metnin öne çıkan parçalarını başka bir belgeye saniyeler içinde taşıyın.</p></div>
+          <div><h3>${t("empty.card2.title")}</h3><p>${t("empty.card2.body")}</p></div>
         </div>
         <div class="kart">
           <div class="kart-ikon">${svg('<path d="M5 5h14a1 1 0 0 1 1 1v9a1 1 0 0 1-1 1h-8l-4 3v-3H5a1 1 0 0 1-1-1V6a1 1 0 0 1 1-1z"/>', 34)}</div>
-          <div><h3>İşaretle ve yorumla</h3><p>Önemli yerleri işaretleyin, notlar alın. Belgeniz tamamen sizin olsun.</p></div>
+          <div><h3>${t("empty.card3.title")}</h3><p>${t("empty.card3.body")}</p></div>
         </div>
         <div class="kart">
           <div class="kart-ikon">${svg('<path d="M12 3v4M12 17v4M3 12h4M17 12h4M6.2 6.2l2.6 2.6M15.2 15.2l2.6 2.6M17.8 6.2l-2.6 2.6M8.8 15.2l-2.6 2.6"/>', 34)}</div>
-          <div><h3>Yapay zekâ desteği</h3><p>Metni toparlasın, kelimelere ilham versin. Kalem yine sizde.</p></div>
+          <div><h3>${t("empty.card4.title")}</h3><p>${t("empty.card4.body")}</p></div>
         </div>
       </div>`,
     );
@@ -88,7 +90,8 @@ export function sayNotMarkdown(parent, fileName) {
 
   const note = document.createElement("div");
   note.className = "refused";
-  note.innerHTML = `${icon('<path d="M12 9v4"/><path d="M12 17h.01"/><circle cx="12" cy="12" r="9"/>')}<span><b>${fileName}</b> açılmadı — MD Plus yalnız <code>.md</code> açar.</span>`;
+  const safeName = String(fileName).replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+  note.innerHTML = `${svg('<path d="M12 9v4"/><path d="M12 17h.01"/><circle cx="12" cy="12" r="9"/>', 15)}<span><b>${safeName}</b>${t("empty.notMdMid")}<code>.md</code>${t("empty.notMdPost")}</span>`;
   parent.append(note);
 
   setTimeout(() => note.remove(), 5000);

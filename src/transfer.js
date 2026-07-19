@@ -21,6 +21,7 @@ import { setAppMode } from "./context.js";
 import { closeAllSearch } from "./search.js";
 import { setReadOnly } from "./surface.js";
 import { GLYPH, iconAction } from "./strip.js";
+import { t } from "./i18n.js";
 
 export class Transfer {
   /**
@@ -61,10 +62,11 @@ export class Transfer {
     // The words "Sekmelere dön" beside it were its caption, not information.
     const back = document.createElement("button");
     back.className = "icon-action back";
-    back.title = "Sekmelere dön";
-    back.setAttribute("aria-label", "Sekmelere dön");
+    back.title = t("transfer.back");
+    back.setAttribute("aria-label", t("transfer.back"));
     back.innerHTML = `<svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.25" stroke-linecap="round" stroke-linejoin="round">${GLYPH.back}</svg>`;
     back.onclick = () => this.close();
+    this.backButton = back;
 
     // One document, full width, and its marks to travel between. Sending them
     // somewhere else is a second thing you may or may not ask for — so nothing
@@ -72,7 +74,7 @@ export class Transfer {
     this.sourceName = document.createElement("span");
     this.sourceName.className = "source-name";
 
-    this.aimButton = iconAction("send", "Taşınacak belgeyi seç", () => {
+    this.aimButton = iconAction("send", t("transfer.pickTarget"), () => {
       // This door only picks a target; a piece left pending by a dismissed
       // "Taşı" menu must not ride along and land unasked.
       this.pendingSend = null;
@@ -92,20 +94,20 @@ export class Transfer {
     this.targetPicker.className = "target-picker";
 
     // Closing the target belongs to the target: right next to its name.
-    this.aimed.append(
-      this.targetPicker,
-      iconAction("close", "Hedefi kapat", () => this.dropTarget()),
-    );
+    this.closeTargetButton = iconAction("close", t("transfer.closeTarget"), () => this.dropTarget());
+    this.aimed.append(this.targetPicker, this.closeTargetButton);
 
     // Travel between the marks themselves — the reason you are on this screen.
     // (The bar that used to sit here, showing how much of the document was
     // marked, told you a number you could not act on. This you can act on.)
     this.travel = document.createElement("div");
     this.travel.className = "travel";
+    this.prevButton = iconAction("prev", t("transfer.prevMark"), () => this.travelTo(-1));
+    this.nextButton = iconAction("next", t("transfer.nextMark"), () => this.travelTo(1));
     this.travel.append(
-      iconAction("prev", "Önceki işaret", () => this.travelTo(-1)),
+      this.prevButton,
       Object.assign(document.createElement("span"), { className: "travel-count" }),
-      iconAction("next", "Sonraki işaret", () => this.travelTo(1)),
+      this.nextButton,
     );
 
     bridge.append(back, this.sourceName, this.aimButton, this.aimed, this.travel);
@@ -228,8 +230,8 @@ export class Transfer {
     this.targetMenu = popover(this.aimButton, [
       ...others.map((tab) => ({ label: tab.title, run: () => aim(tab) })),
       ...(others.length ? ["-"] : []),
-      { label: "Diskten seç…", muted: true, run: () => aim(this.pickFromDisk()) },
-      { label: "Yeni boş belge", muted: true, run: () => aim(this.createTarget()) },
+      { label: t("transfer.pickFromDisk"), muted: true, run: () => aim(this.pickFromDisk()) },
+      { label: t("transfer.newEmpty"), muted: true, run: () => aim(this.createTarget()) },
     ]);
     if (!this.targetMenu) return; // second press on the send icon toggled it shut
 
@@ -237,7 +239,7 @@ export class Transfer {
     // pressing "Taşı" on a mark with no target open: where to?
     const heading = document.createElement("div");
     heading.className = "menu-heading";
-    heading.textContent = "Hedef belgeyi seçin";
+    heading.textContent = t("transfer.chooseHeading");
     this.targetMenu.prepend(heading);
   }
 
@@ -406,7 +408,22 @@ export class Transfer {
 
     this.marks.strip.hide();
     this.showGhostCaret(); // it moved: the next piece lands after this one
-    this.say(`aktarıldı → ${this.target.title}`);
+    this.say(t("transfer.transferred", { title: this.target.title }));
+  }
+
+  /** Re-labels the bridge in the current language (called on a language change).
+      The menus are built fresh on open, so only the persistent bar needs this. */
+  relocalize() {
+    this.backButton.title = t("transfer.back");
+    this.backButton.setAttribute("aria-label", t("transfer.back"));
+    this.aimButton.title = t("transfer.pickTarget");
+    this.aimButton.setAttribute("aria-label", t("transfer.pickTarget"));
+    this.closeTargetButton.title = t("transfer.closeTarget");
+    this.closeTargetButton.setAttribute("aria-label", t("transfer.closeTarget"));
+    this.prevButton.title = t("transfer.prevMark");
+    this.prevButton.setAttribute("aria-label", t("transfer.prevMark"));
+    this.nextButton.title = t("transfer.nextMark");
+    this.nextButton.setAttribute("aria-label", t("transfer.nextMark"));
   }
 
   // ---- travelling ----------------------------------------------------------

@@ -6,6 +6,7 @@
 // heading, it never splits it.
 
 import { EditorSelection } from "@codemirror/state";
+import { t } from "./i18n.js";
 
 // ---- inline ----------------------------------------------------------------
 
@@ -189,7 +190,7 @@ export function setCallout(type) {
 export function insertLink(view, target) {
   const { state } = view;
   const range = state.selection.main;
-  const text = state.doc.sliceString(range.from, range.to) || "bağlantı";
+  const text = state.doc.sliceString(range.from, range.to) || t("editor.linkText");
 
   view.dispatch({
     changes: { from: range.from, to: range.to, insert: `[${text}](${target})` },

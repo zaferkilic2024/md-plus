@@ -15,6 +15,7 @@ import { openSettings } from "./settings-panel.js";
 import { goster } from "./shortcuts.js";
 import { GLYPH } from "./strip.js";
 import { documentJobs, jobName, jobShortcut, provider } from "./ai.js";
+import { t } from "./i18n.js";
 
 const icon = (paths, size = 15) =>
   `<svg width="${size}" height="${size}" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round">${paths}</svg>`;
@@ -80,7 +81,7 @@ export function popover(anchor, items) {
     entry.innerHTML =
       (item.icon ? `<i class="popover-icon">${icon(GLYPH[item.icon])}</i>` : "") +
       `<span class="popover-label">${item.label}</span>` +
-      (item.dirty ? '<i class="popover-dot" title="kaydedilmemiş"></i>' : "") +
+      (item.dirty ? `<i class="popover-dot" title="${t("tab.unsaved")}"></i>` : "") +
       (item.key ? `<kbd>${item.key}</kbd>` : "");
     entry.disabled = Boolean(item.disabled);
     entry.classList.toggle("current", Boolean(item.active));
@@ -103,7 +104,7 @@ export function popover(anchor, items) {
     const drop = document.createElement("button");
     drop.className = "popover-drop";
     drop.innerHTML = icon('<path d="M18 6L6 18M6 6l12 12"/>', 13);
-    drop.title = "Kapat";
+    drop.title = t("menu.close");
     drop.onclick = (event) => {
       event.stopPropagation();
       close();
@@ -171,7 +172,7 @@ export function popover(anchor, items) {
 export function recentRows(container, entries, { onPick, isOpen = () => false, place }) {
   const heading = document.createElement("div");
   heading.className = "menu-heading";
-  heading.textContent = "Son açılanlar";
+  heading.textContent = t("recents.heading");
   container.append(heading);
 
   for (const entry of entries) {
@@ -201,7 +202,7 @@ export function recentRows(container, entries, { onPick, isOpen = () => false, p
     if (isOpen(entry.path)) {
       const open = document.createElement("span");
       open.className = "recent-open";
-      open.title = "Bu belge açık — sekmesine geçer";
+      open.title = t("recents.openHint");
       open.innerHTML = icon(
         '<path d="M2 18.5h20"/><path d="M3.5 18.5v-5a1.8 1.8 0 0 1 1.8-1.8h7a1.8 1.8 0 0 1 1.8 1.8v5"/>',
         15,
@@ -225,7 +226,7 @@ export function recentRows(container, entries, { onPick, isOpen = () => false, p
 export function sayMissing(row, path) {
   const gone = document.createElement("div");
   gone.className = "recent-missing";
-  gone.innerHTML = `<div class="recent-missing-line">Bulunamadı — bu satır düşüyor.</div><div class="recent-missing-path"></div>`;
+  gone.innerHTML = `<div class="recent-missing-line">${t("recents.missing")}</div><div class="recent-missing-path"></div>`;
   gone.querySelector(".recent-missing-path").textContent = path;
   row.replaceWith(gone);
   setTimeout(() => gone.remove(), 1400);
@@ -255,11 +256,11 @@ export function createChrome({ onCommand, activeTab, onSearch, onBack }) {
   // The way back along a followed link (18 Tem). Born when there is somewhere
   // to go back to, gone when there is not — the recents chevron's rule: absence
   // is absence, never a greyed control. So it costs the strip nothing at rest.
-  const back = tool("back", "Geri · Alt+←", () => onBack());
+  const back = tool("back", t("menu.back"), () => onBack());
   back.hidden = true;
   left.append(back);
 
-  const contents = tool("contents", "İçindekiler", () => {
+  const contents = tool("contents", t("menu.contents"), () => {
     const tab = activeTab();
     if (!tab) return;
 
@@ -271,7 +272,7 @@ export function createChrome({ onCommand, activeTab, onSearch, onBack }) {
     if (headings.length === 0) {
       const none = document.createElement("p");
       none.className = "outline-empty";
-      none.textContent = "Başlık yok";
+      none.textContent = t("menu.noHeadings");
       menu.append(none);
       return;
     }
@@ -321,7 +322,7 @@ export function createChrome({ onCommand, activeTab, onSearch, onBack }) {
   // not hidden. A tool that appears and vanishes as marks come and go shoves the
   // tabs sideways under the reader's hand; a fixed, greyed anchor holds the row
   // still. (İçindekiler sits to its left and never moves either.)
-  const marksTool = tool("marks", "İşaretler · F8", () => {
+  const marksTool = tool("marks", t("menu.marks"), () => {
     const tab = activeTab();
     if (!tab) return;
 
@@ -380,14 +381,14 @@ export function createChrome({ onCommand, activeTab, onSearch, onBack }) {
 
   // Ctrl+F used to be the only way in. An action reachable only by knowing its
   // shortcut is an action most people do not have.
-  const search = tool("search", "Belgede ara · Ctrl+F", onSearch);
+  const search = tool("search", t("menu.search"), onSearch);
 
   // Settings belong to the app, not to a document — so they are not hidden in
   // the ⋯ menu, which is entirely about the document you are standing in.
-  const settings = tool("settings", "Ayarlar", () => openSettings(settings));
+  const settings = tool("settings", t("menu.settings"), () => openSettings(settings));
 
   // ⋯ acts on this document, and only on this document.
-  const more = tool("more", "Belge menüsü", () => {
+  const more = tool("more", t("menu.docMenu"), () => {
     const tab = activeTab();
 
     // The document-wide AI jobs. Note what this is NOT: a greyed-out entry. With
@@ -406,28 +407,28 @@ export function createChrome({ onCommand, activeTab, onSearch, onBack }) {
       }));
 
     popover(more, [
-      { icon: "save", label: "Kaydet", key: "Ctrl+S", run: () => onCommand("save"), disabled: !tab },
+      { icon: "save", label: t("menu.save"), key: "Ctrl+S", run: () => onCommand("save"), disabled: !tab },
       {
         icon: "saveAs",
-        label: "Farklı kaydet…",
+        label: t("menu.saveAs"),
         key: "Ctrl+Shift+S",
         run: () => onCommand("saveAs"),
         disabled: !tab,
       },
-      { icon: "rename", label: "Adını değiştir…", run: () => onCommand("rename"), disabled: !tab },
+      { icon: "rename", label: t("menu.rename"), run: () => onCommand("rename"), disabled: !tab },
       "-",
       // Two different acts, so two entries. "PDF'e bas" was the wrong word for
       // both of them: nothing is pressed onto anything — a file is written to
       // disk. Printing is the one that puts ink on paper.
-      { icon: "printer", label: "Yazdır…", key: "Ctrl+P", run: () => onCommand("printPaper"), disabled: !tab },
-      { icon: "sheet", label: "PDF olarak kaydet…", key: "Ctrl+Shift+P", run: () => onCommand("print"), disabled: !tab },
+      { icon: "printer", label: t("menu.print"), key: "Ctrl+P", run: () => onCommand("printPaper"), disabled: !tab },
+      { icon: "sheet", label: t("menu.savePdf"), key: "Ctrl+Shift+P", run: () => onCommand("print"), disabled: !tab },
       // Not "İşaretle / Taşı" any more: marking is done in the document itself
       // (KR-55), and what this opens only travels and sends (KR-57). With no
       // marks there is nothing to travel between and nothing to send, so the
       // entry is off (B-17) — the screen would open onto its own pointlessness.
       {
         icon: "transfer",
-        label: "İşaretleri taşı",
+        label: t("menu.transfer"),
         key: "Ctrl+Shift+A",
         run: () => onCommand("transfer"),
         disabled: !tab || !tab.marks?.list().length,
@@ -436,7 +437,7 @@ export function createChrome({ onCommand, activeTab, onSearch, onBack }) {
       "-",
       // The same ✕ that closes a card, dismisses a suggestion and drops a tab
       // from the stack. One gesture, one glyph.
-      { icon: "close", label: "Sekmeyi kapat", key: "Ctrl+W", run: () => onCommand("close"), disabled: !tab },
+      { icon: "close", label: t("menu.closeTab"), key: "Ctrl+W", run: () => onCommand("close"), disabled: !tab },
     ]);
   });
 

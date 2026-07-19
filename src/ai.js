@@ -9,7 +9,9 @@
 
 import { fetch as tauriFetch } from "@tauri-apps/plugin-http";
 import { hardGate, flags, wordCount } from "./ai-check.js";
-import { getSettings } from "./settings.js";
+import { effectiveLang, getSettings } from "./settings.js";
+import { detectTextLang } from "./lang-detect.js";
+import { t } from "./i18n.js";
 
 const GEMINI = "https://generativelanguage.googleapis.com/v1beta/models";
 const OLLAMA = "http://127.0.0.1:11434/api/generate";
@@ -52,12 +54,106 @@ const CLAUDE_HEADERS = (anahtar) => ({
  * treated as a journal article, so a warm, personal paragraph came back wearing
  * a tie. The style of the text is the text's business.
  */
+/**
+ * The English prompts — the exact rules as their Turkish siblings in JOBS, so a
+ * suggestion is judged by the same bar in either language (the hard gate and the
+ * flags are language-agnostic; only the instructions differ).
+ */
+const EN_PROMPTS = {
+  rewrite: (text) =>
+    `Make the following text more fluent and readable.\n\n` +
+    `RULES:\n` +
+    `1. Do NOT change the content, claims, numbers, dates or proper names.\n` +
+    `2. Do NOT add new information, new numbers or new sources.\n` +
+    `3. PRESERVE THE TEXT'S OWN VOICE. If it is casual, keep it casual; if formal, keep it formal. Do not impose your own style.\n` +
+    `4. Do NOT add metaphors. Leave the text's own figures of speech in place; do not pile a new one on in the name of "fluency". Turning a plain sentence into an image is not fluency.\n` +
+    `5. Keep the Markdown formatting (**bold**, *italic*, [link](x.md)) and LaTeX formulas ($...$) EXACTLY.\n` +
+    `6. Do not use HTML.\n` +
+    `7. Do not lengthen the text; keep it the same length.\n` +
+    `8. Give ONLY the rewritten text. No explanation, heading or preface.\n\n` +
+    `TEXT:\n${text}`,
+
+  continue: (text) =>
+    `Write a NEW paragraph that continues the following text.\n\n` +
+    `YOU ARE THE AUTHOR OF THE TEXT. Continue from within it, in the author's own voice.\n` +
+    `Do NOT invent a third person ("the user", "the writer", "you"); do not describe\n` +
+    `anyone, do not answer anyone. Your output will be added directly to the document.\n\n` +
+    `LENGTH: A full paragraph — 4 to 7 sentences. Not a one-line note but a real\n` +
+    `paragraph that advances the thought. (Here brevity is not a virtue; it is\n` +
+    `leaving the job unfinished.)\n\n` +
+    `RULES:\n` +
+    `1. Do NOT restate the existing text in other words. Say something new: a reason, an example, a counterpoint, a distinction, a conclusion.\n` +
+    `2. No empty sentences. Every sentence must carry something new — content, not decoration.\n` +
+    `3. Do not fake a conclusion with connectives like "therefore", "in conclusion"; do not use them unless you are actually concluding something.\n` +
+    `4. METAPHOR SPARINGLY: at most one comparison per paragraph, and only if it genuinely advances the thought. Piling on comparisons is noise, not depth; do not explain one image with a second.\n` +
+    `5. PRESERVE THE TEXT'S OWN VOICE AND TONE.\n` +
+    `6. Do NOT invent sources, dates, names or numbers.\n` +
+    `7. Do not use HTML.\n` +
+    `8. Give ONLY the new paragraph. No explanation, no preface.\n\n` +
+    `TEXT:\n${text}`,
+
+  proofread: (text) =>
+    `Fix ONLY spelling and punctuation errors in the following text.\n\n` +
+    `MOST IMPORTANT RULE — DO NOT CHANGE WORDS:\n` +
+    `Do NOT replace any word with another. Do not write a synonym. Do not suggest a nicer one.\n` +
+    `Do NOT add, remove or reorder words. No splitting or merging sentences.\n` +
+    `The words in the output must be the SAME words as the input — only the misspelt ones are\n` +
+    `corrected to their right spelling. Example: "recieve" → "receive" (a typo, corrected).\n` +
+    `But "wrong" → "incorrect" is FORBIDDEN (that is a word change).\n\n` +
+    `THE ONLY THINGS ALLOWED:\n` +
+    `- The correct spelling of a misspelt word ("seperate" → "separate", "alot" → "a lot")\n` +
+    `- Missing/extra punctuation (commas, periods, apostrophes: "dont" → "don't")\n` +
+    `- Capitalization errors ("england" → "England")\n` +
+    `- Wrong joined/split spelling ("everyday" → "every day" where meant as two words)\n\n` +
+    `STRICTLY FORBIDDEN:\n` +
+    `- Changing the style, tone or sentence structure. "Improving" or "smoothing" the text.\n` +
+    `- Mistaking long but CORRECT words for errors and changing them.\n` +
+    `- Touching proper names, terms or formulas (Nash equilibrium, von Neumann, $x^2$).\n` +
+    `- Writing HTML. Breaking Markdown formatting.\n\n` +
+    `IF THERE ARE NO ERRORS: return the text letter for letter, unchanged. You do not have to change anything.\n` +
+    `OUTPUT: text only. Do not explain what you fixed, do not make a list.\n\n` +
+    `TEXT:\n${text}`,
+
+  verify: (text) =>
+    `Examine the FACTUAL CLAIMS in the following text.\n\n` +
+    `RULES:\n` +
+    `1. List each claim one by one. For each: "doubtful", "looked correct" or "not sure".\n` +
+    `2. WHERE YOU ARE NOT SURE, SAY "not sure". Do not guess, do not fill in.\n` +
+    `3. If a date, number or name looks wrong, say so; but if you are not sure of the correct one, say that too.\n` +
+    `4. Do not rewrite the text or suggest corrections. Only review.\n` +
+    `5. Write short, as a bulleted list.\n\n` +
+    `TEXT:\n${text}`,
+
+  cite: (text) =>
+    `Suggest sources from the literature relevant to the topic of the following text.\n\n` +
+    `RULES:\n` +
+    `1. Only suggest works you are SURE actually exist. If you are not sure, do NOT suggest it.\n` +
+    `2. Do NOT invent DOIs, page numbers or volume numbers. If you don't know, don't write it.\n` +
+    `3. For each source, say in one sentence why it is relevant.\n` +
+    `4. If you are not sure of any source, say "I can't suggest a source I'm sure of".\n` +
+    `5. At most 5 sources. Write short.\n\n` +
+    `TEXT:\n${text}`,
+
+  summarize: (text) =>
+    `Summarize the following text.\n\n` +
+    `RULES:\n` +
+    `1. Summarize ONLY what the text says. Do not add information, numbers, names or dates not in the text.\n` +
+    `2. Draw out the text's own argument, its steps, and its conclusion if it reaches one.\n` +
+    `3. Write as bullets: at most 7 bullets, each a single sentence.\n` +
+    `4. Use THE TEXT'S OWN TERMS; do not impose your own vocabulary.\n` +
+    `5. Do not add commentary, do not evaluate, do not advise. A summary is not a judgement.\n` +
+    `6. If the text reaches no conclusion, do not pretend it does; say where it leaves off.\n` +
+    `7. Do not use HTML.\n` +
+    `8. Give ONLY the summary. No explanation, heading or closing sentence.\n\n` +
+    `TEXT:\n${text}`,
+};
+
 const JOBS = {
   rewrite: {
     ad: "Akıcı alternatif",
     tur: "metin",
     kisayol: "Alt-a",
-    prompt: (text) =>
+    prompt: (text, lang) => lang === "en" ? EN_PROMPTS.rewrite(text) :
       `Aşağıdaki Türkçe metni daha akıcı ve okunaklı hâle getir.\n\n` +
       `KURALLAR:\n` +
       `1. İçeriği, iddiaları, sayıları, tarihleri, özel adları DEĞİŞTİRME.\n` +
@@ -75,7 +171,7 @@ const JOBS = {
     ad: "Tamamlayıcı paragraf",
     tur: "metin",
     kisayol: "Alt-t",
-    prompt: (text) =>
+    prompt: (text, lang) => lang === "en" ? EN_PROMPTS.continue(text) :
       `Aşağıdaki Türkçe metni tamamlayan YENİ bir paragraf yaz.\n\n` +
       `SEN METNİN YAZARISIN. Metnin içinden, yazarın kendi ağzından devam et.\n` +
       `"Kullanıcı", "yazar", "siz" diye üçüncü şahıs KURMA; kimseyi anlatma,\n` +
@@ -99,7 +195,7 @@ const JOBS = {
     ad: "Yazım ve noktalama",
     tur: "metin",
     kisayol: "Alt-y",
-    prompt: (text) =>
+    prompt: (text, lang) => lang === "en" ? EN_PROMPTS.proofread(text) :
       `Aşağıdaki Türkçe metinde YALNIZCA yazım (imla) ve noktalama hatalarını düzelt.\n\n` +
       `EN ÖNEMLİ KURAL — KELİME DEĞİŞTİRME:\n` +
       `Hiçbir kelimeyi başka bir kelimeyle DEĞİŞTİRME. Eşanlamlısını yazma. Daha güzelini önerme.\n` +
@@ -129,7 +225,7 @@ const JOBS = {
     ad: "Bilgi denetimi",
     tur: "rapor",
     kisayol: "Alt-b",
-    prompt: (text) =>
+    prompt: (text, lang) => lang === "en" ? EN_PROMPTS.verify(text) :
       `Aşağıdaki Türkçe metindeki OLGUSAL İDDİALARI incele.\n\n` +
       `KURALLAR:\n` +
       `1. Her iddiayı tek tek listele. Her biri için: "şüpheli", "doğru göründü" ya da "emin değilim".\n` +
@@ -144,7 +240,7 @@ const JOBS = {
     ad: "Kaynak önerisi",
     tur: "rapor",
     kisayol: "Alt-k",
-    prompt: (text) =>
+    prompt: (text, lang) => lang === "en" ? EN_PROMPTS.cite(text) :
       `Aşağıdaki Türkçe metnin konusuyla ilgili literatürden kaynak öner.\n\n` +
       `KURALLAR:\n` +
       `1. Yalnızca GERÇEKTEN var olduğundan emin olduğun eserleri öner. Emin değilsen ÖNERME.\n` +
@@ -182,7 +278,7 @@ const JOBS = {
     kisayol: "Alt-o",
     // "Belge" değil "metin" (18 Tem): aynı iş artık paletten SEÇİM üzerinde de
     // çalışıyor. Prompt girdisinin ne olduğunu bilmez; kapıyı arayan bilir.
-    prompt: (text) =>
+    prompt: (text, lang) => lang === "en" ? EN_PROMPTS.summarize(text) :
       `Aşağıdaki Türkçe metni özetle.\n\n` +
       `KURALLAR:\n` +
       `1. Yalnız metinde YAZANI özetle. Metinde olmayan bilgi, sayı, ad, tarih EKLEME.\n` +
@@ -197,7 +293,9 @@ const JOBS = {
   },
 };
 
-export const jobName = (job) => JOBS[job].ad;
+// The display name is localized; JOBS[job].ad is no longer read for it (the
+// prompt bodies stay in JOBS, the labels moved to the i18n catalog).
+export const jobName = (job) => t(`ai.job.${job}`);
 export const jobKind = (job) => JOBS[job].tur;
 export const jobShortcut = (job) => JOBS[job].kisayol ?? null;
 export const textJobs = () => Object.keys(JOBS).filter((j) => JOBS[j].tur === "metin");
@@ -219,7 +317,7 @@ export const documentJobs = () => Object.keys(JOBS).filter((j) => jobScope(j) ==
 export const jobShortcuts = () =>
   [...textJobs(), ...reportJobs()]
     .filter((j) => JOBS[j].kisayol)
-    .map((j) => ({ job: j, kisayol: JOBS[j].kisayol, ad: JOBS[j].ad }));
+    .map((j) => ({ job: j, kisayol: JOBS[j].kisayol, ad: jobName(j) }));
 
 /**
  * The provider registry — the one list that knows how each kind of connection
@@ -324,6 +422,19 @@ export const PROVIDERS = [
 /** The registry row for a connection's type, or null for an unknown/old one. */
 export const providerMeta = (tur) => PROVIDERS.find((p) => p.id === tur) ?? null;
 
+/**
+ * The connection type's display name. Brand names (Gemini, Claude, OpenRouter…)
+ * are the same in every language and come straight off the row; only the two
+ * descriptive ones ("Yerel (Ollama)", "Özel (OpenAI uyumlu)") are localized,
+ * so a missing catalog key falls back to the row's own `ad`.
+ */
+export const providerLabel = (meta) => {
+  if (!meta) return "";
+  const key = `provider.${meta.id}`;
+  const s = t(key);
+  return s === key ? meta.ad : s;
+};
+
 /** A localhost endpoint never touches the network — the warning must not lie. */
 const isLocal = (url) =>
   /^https?:\/\/(localhost|127\.0\.0\.1|0\.0\.0\.0|\[::1\])(:|\/|$)/i.test(url ?? "");
@@ -393,8 +504,8 @@ export const anyJobEnabled = () => [...textJobs(), ...reportJobs()].some((j) => 
  */
 export async function suggest(job, text, { signal } = {}) {
   const kapi = provider(job);
-  if (!kapi) return { hata: "Yapay zekâ kapalı." };
-  if (!kapi.model) return { hata: "Model seçilmedi — Ayarlar'dan seçin." };
+  if (!kapi) return { hata: t("ai.err.off") };
+  if (!kapi.model) return { hata: t("ai.err.noModel") };
 
   const basladi = Date.now();
   let cikti;
@@ -411,8 +522,12 @@ export async function suggest(job, text, { signal } = {}) {
     ...LOCAL_ADAPTERS,
   };
 
+  // The output language follows the TEXT, not the interface (Zafer, 19 Tem);
+  // only when the text gives no signal does it fall back to the interface language.
+  const lang = detectTextLang(text, effectiveLang());
+
   try {
-    const yanit = await soranlar[kapi.protokol](kapi, JOBS[job].prompt(text), signal);
+    const yanit = await soranlar[kapi.protokol](kapi, JOBS[job].prompt(text, lang), signal);
     cikti = yanit.metin;
     kullanim = yanit.kullanim ?? null;
   } catch (hata) {
@@ -468,7 +583,12 @@ const gateKind = (job) => (job === "continue" ? "continue" : "rewrite");
 function tidy(text) {
   let out = text.trim();
   out = out.replace(/^```[a-z]*\n?/i, "").replace(/\n?```$/, "");
-  out = out.replace(/^(İşte|Buyurun|Elbette)[^\n:]{0,60}:\s*/i, "");
+  // Turkish ("İşte daha akıcı hâli:") and English ("Here is the rewritten text:")
+  // prefaces alike — the output language can now be either.
+  out = out.replace(
+    /^(İşte|Buyurun|Elbette|Here(?:'s| is)?|Sure|Certainly|Of course)[^\n:]{0,60}:\s*/i,
+    "",
+  );
   return out.trim();
 }
 
@@ -604,8 +724,8 @@ export async function geminiModels(anahtar) {
     const govde = await yanit.text();
     throw new Error(
       yanit.status === 400 || yanit.status === 403
-        ? "Anahtar geçersiz."
-        : `Model listesi alınamadı (${yanit.status}): ${govde.slice(0, 120)}`,
+        ? t("ai.err.keyInvalidShort")
+        : t("ai.err.modelListFailedCode", { status: yanit.status, body: govde.slice(0, 120) }),
     );
   }
 
@@ -620,7 +740,7 @@ export async function geminiModels(anahtar) {
 /** The local models Ollama has pulled. Same principle: ask, do not assume. */
 export async function ollamaModels() {
   const yanit = await tauriFetch("http://127.0.0.1:11434/api/tags");
-  if (!yanit.ok) throw new Error("Ollama yanıt vermiyor.");
+  if (!yanit.ok) throw new Error(t("ai.err.ollamaNoResponse"));
   return ((await yanit.json()).models ?? []).map((m) => m.name).sort();
 }
 
@@ -636,7 +756,7 @@ export async function ollamaModels() {
  */
 async function askOpenAI(kapi, prompt, signal) {
   const base = (kapi.baseUrl ?? "").replace(/\/+$/, "");
-  if (!base) throw new Error("Adres girilmemiş — Ayarlar'dan bağlantının adresini yazın.");
+  if (!base) throw new Error(t("ai.err.addressMissing"));
 
   // A key is required unless the endpoint is on this machine (LM Studio, vLLM),
   // where it is typically ignored.
@@ -672,7 +792,7 @@ async function askOpenAI(kapi, prompt, signal) {
   // code 429 here, not as an HTTP status. Missing this meant the raw JSON landed
   // in front of the writer, unreadable and uncloseable.
   if (veri.error) {
-    throw Object.assign(new Error(veri.error.message ?? "Sağlayıcı hatası"), {
+    throw Object.assign(new Error(veri.error.message ?? t("ai.err.providerError")), {
       durum: veri.error.code ?? 500,
       ucretsizKota: /rate-limit/i.test(veri.error.metadata?.raw ?? ""),
     });
@@ -696,12 +816,12 @@ async function askOpenAI(kapi, prompt, signal) {
  */
 export async function openaiModels(baseUrl, anahtar) {
   const base = (baseUrl ?? "").replace(/\/+$/, "");
-  if (!base) throw new Error("Önce adresi yazın.");
+  if (!base) throw new Error(t("ai.err.enterAddress"));
   const yanit = await tauriFetch(`${base}/models`, {
     headers: anahtar ? { authorization: `Bearer ${anahtar}` } : {},
   });
   if (!yanit.ok) {
-    throw new Error(yanit.status === 401 ? "Anahtar geçersiz." : "Model listesi alınamadı.");
+    throw new Error(yanit.status === 401 ? t("ai.err.keyInvalidShort") : t("ai.err.modelListFailed"));
   }
   return ((await yanit.json()).data ?? []).map((m) => m.id);
 }
@@ -759,8 +879,8 @@ export async function claudeModels(anahtar) {
     const govde = await yanit.text();
     throw new Error(
       yanit.status === 401
-        ? "Anahtar geçersiz."
-        : `Model listesi alınamadı (${yanit.status}): ${govde.slice(0, 120)}`,
+        ? t("ai.err.keyInvalidShort")
+        : t("ai.err.modelListFailedCode", { status: yanit.status, body: govde.slice(0, 120) }),
     );
   }
 
@@ -773,36 +893,34 @@ export async function claudeModels(anahtar) {
  * came, because a vague "bir şeyler ters gitti" is how a bug survives for weeks.
  */
 function readableError(hata, kapi) {
-  if (hata.anahtarYok) return "API anahtarı girilmemiş — Ayarlar'dan ekleyin.";
+  if (hata.anahtarYok) return t("ai.err.keyMissing");
 
   if (hata.durum === 429) {
     // A free model's rate limit is not a passing hiccup — it is the free tier
     // working as designed. Say what it is and what actually fixes it.
     if (hata.ucretsizKota) {
-      return "Bu ücretsiz model şu an kota sınırında. Ücretsiz modeller ağır sınırlıdır — birkaç dakika sonra deneyin ya da ücretli bir model seçin.";
+      return t("ai.err.freeQuota");
     }
-    return kapi.ucretli
-      ? "İstek sınırına takıldı — biraz bekleyin."
-      : "Kota doldu — bir süre sonra deneyin.";
+    return kapi.ucretli ? t("ai.err.rateLimitPaid") : t("ai.err.quotaFree");
   }
-  if (hata.durum === 401 || hata.durum === 403) return "API anahtarı geçersiz.";
-  if (hata.durum === 402) return "Bakiye yetersiz — OpenRouter hesabınıza kredi ekleyin.";
-  if (hata.durum === 400) return `İstek reddedildi: ${kisalt(hata.message)}`;
-  if (hata.durum === 404) return `Model bulunamadı: ${kapi.model}`;
-  if (hata.durum === 529 || hata.durum === 503) return "Sağlayıcı şu an yoğun — birazdan deneyin.";
+  if (hata.durum === 401 || hata.durum === 403) return t("ai.err.keyInvalid");
+  if (hata.durum === 402) return t("ai.err.balance");
+  if (hata.durum === 400) return t("ai.err.badRequest", { msg: kisalt(hata.message) });
+  if (hata.durum === 404) return t("ai.err.modelNotFound", { model: kapi.model });
+  if (hata.durum === 529 || hata.durum === 503) return t("ai.err.busy");
 
   // Ollama's own crashes come back as a wall of C++ (CUDA init failures, stack
   // overruns). "Ollama yanıt vermiyor" would be a lie: it answered, and what it
   // said was that it had fallen over. So say which of the two it is.
   if (kapi.tur === "ollama") {
     if (/cuda|gpu|shared object/i.test(hata.message ?? "")) {
-      return "Ollama modeli GPU'ya yükleyemedi — Ollama'yı yeniden başlatın ya da daha küçük bir model seçin.";
+      return t("ai.err.ollamaGpu");
     }
-    if (!hata.durum) return "Ollama yanıt vermiyor — çalıştığından emin olun.";
-    return `Ollama modeli çalıştıramadı: ${kisalt(hata.message)}`;
+    if (!hata.durum) return t("ai.err.ollamaDown");
+    return t("ai.err.ollamaFailed", { msg: kisalt(hata.message) });
   }
 
-  return `Öneri alınamadı: ${kisalt(hata.message ?? String(hata))}`;
+  return t("ai.err.generic", { msg: kisalt(hata.message ?? String(hata)) });
 }
 
 const kisalt = (text) => {

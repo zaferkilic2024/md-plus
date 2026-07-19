@@ -30,7 +30,10 @@ import { printDocument, printPaper } from "./print.js";
 import { createEmptyState, sayNotMarkdown } from "./empty.js";
 import { createChrome, popover, recentRows, sayMissing, ICONS } from "./chrome.js";
 import { forget, remember, renamePath, rows } from "./recents.js";
-import { loadSettings } from "./settings.js";
+import { effectiveLang, loadSettings } from "./settings.js";
+import { setLang, t } from "./i18n.js";
+import { relocalizePalettes } from "./palette.js";
+import { relocalizeSearch } from "./search.js";
 
 const tabsEl = document.getElementById("tabs");
 const bodyEl = document.getElementById("body");
@@ -94,7 +97,7 @@ function render() {
 // The strip: contents on the left; search, ⋯ and settings on the right. "Belge
 // aç" is not here — it makes tabs, so it sits in the strip's tail beside "+"
 // (see renderTabs). No action lives only in a shortcut.
-const chrome = createChrome({
+const chromeDeps = {
   activeTab: () => activeTab(),
   onBack: () => goBack(),
   onSearch: () => {
@@ -118,7 +121,29 @@ const chrome = createChrome({
       suggestion.run(tab.view, command, { source: tab.view.state.doc.toString() });
     }
   },
-});
+};
+
+// The strip is built once, but a language change has to rebuild it (its icons'
+// tooltips are set at creation). So it is `let`, and applyLanguage swaps it.
+let chrome = createChrome(chromeDeps);
+
+/**
+ * A language change (Settings) reaches every corner of a shell that was built
+ * once. render() covers the empty screen, the tab strip and the status line; the
+ * pieces that live longer than a render — the chrome strip, and each surface's
+ * palette and search box — are rebuilt or re-labelled here. No reload, so an
+ * unsaved draft survives the switch.
+ */
+function applyLanguage() {
+  setLang(effectiveLang());
+  chrome = createChrome(chromeDeps);
+  relocalizePalettes();
+  relocalizeSearch();
+  transfer.relocalize();
+  render();
+}
+
+window.addEventListener("dil-degisti", applyLanguage);
 
 function renderTabs() {
   tabsEl.replaceChildren();
@@ -212,7 +237,7 @@ function renderTabs() {
     if (tab.dirty) {
       const dot = document.createElement("span");
       dot.className = "dot";
-      dot.title = "kaydedilmemiş";
+      dot.title = t("tab.unsaved");
       el.append(dot);
     }
 
@@ -236,7 +261,7 @@ function renderTabs() {
   const add = document.createElement("div");
   add.className = "tab-add";
   add.textContent = "+";
-  add.title = "Yeni belge · Ctrl+N";
+  add.title = t("tab.newTitle");
   add.onclick = newDocument;
   tabsEl.append(add);
 
@@ -246,7 +271,7 @@ function renderTabs() {
   // both of them make tabs.
   const openDoc = document.createElement("div");
   openDoc.className = "tab-open";
-  openDoc.title = "Belge aç · Ctrl+O";
+  openDoc.title = t("tab.openTitle");
   openDoc.innerHTML = `<svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round">${ICONS.open}</svg>`;
   openDoc.onclick = () => openDocument();
   tabsEl.append(openDoc);
@@ -255,7 +280,7 @@ function renderTabs() {
   // appearance is the list's announcement (KR-58).
   const recent = document.createElement("div");
   recent.className = "tab-recent";
-  recent.title = "Son açılan belgeler";
+  recent.title = t("tab.recentTitle");
   recent.innerHTML = `<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round">${ICONS.chevron}</svg>`;
   recent.hidden = recents.length === 0;
   openDoc.classList.toggle("alone", recents.length === 0);
@@ -269,7 +294,7 @@ function renderTabs() {
   const stack = document.createElement("div");
   stack.className = "tab-stack";
   stack.hidden = true;
-  stack.title = "Tüm belgeler";
+  stack.title = t("tab.allTitle");
   stack.innerHTML =
     '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"><path d="M6 9l6 6 6-6"/></svg>';
   stack.onclick = () =>
@@ -397,7 +422,7 @@ function emptyRecents() {
   // empty screen re-renders back to its first-run face — the four cards return.
   const clear = document.createElement("button");
   clear.className = "recents-clear";
-  clear.textContent = "Listeyi temizle";
+  clear.textContent = t("recents.clear");
   clear.onclick = () => clearRecents();
   list.append(clear);
   return list;
@@ -419,15 +444,15 @@ function renderStatus() {
   }
   const words = tab.view.state.doc.toString().split(/\s+/).filter(Boolean).length;
   const state = tab.saving
-    ? "kaydediliyor…"
+    ? t("status.saving")
     : tab.dirty
-      ? "kaydedilmedi"
+      ? t("status.unsaved")
       : tab.path
-        ? "kaydedildi"
+        ? t("status.saved")
         : "";
-  const parts = [`${words.toLocaleString("tr")} kelime`];
+  const parts = [t("status.wordCount", { n: words.toLocaleString(effectiveLang()) })];
   if (state) parts.push(state);
-  if (tab.backupFailed) parts.push("yedek alınamadı");
+  if (tab.backupFailed) parts.push(t("status.backupFailed"));
   statusEl.textContent = parts.join(" · ");
 }
 
@@ -445,11 +470,11 @@ async function closeTab(index) {
   // "Vazgeç" really cancels.
   if (tab.dirty) {
     const answer = await askChoice(
-      `"${tab.title}" kaydedilmedi. Ne yapılsın?`,
+      t("dialog.savePrompt", { title: tab.title }),
       [
-        { label: "Kaydet", value: "save", primary: true },
-        { label: "Kaydetme", value: "discard" },
-        { label: "Vazgeç", value: "cancel" },
+        { label: t("dialog.save"), value: "save", primary: true },
+        { label: t("dialog.dontSave"), value: "discard" },
+        { label: t("dialog.cancel"), value: "cancel" },
       ],
     );
     if (answer === "cancel") return;
@@ -481,7 +506,7 @@ function createTab({ path, text }) {
   const tab = {
     id: nextTabId++,
     path,
-    title: path ? titleOf(path) : "Adsız",
+    title: path ? titleOf(path) : t("tab.untitled"),
     dirty: false,
     saving: false,
     timer: null,
@@ -574,7 +599,7 @@ async function renameCurrent(tab) {
     return;
   }
 
-  const yeniAd = await askText("Yeni ad:", fileNameOf(tab.path));
+  const yeniAd = await askText(t("dialog.newName"), fileNameOf(tab.path));
   if (!yeniAd) return;
 
   try {
@@ -586,9 +611,9 @@ async function renameCurrent(tab) {
     recents = renamePath(recents, oldPath, tab.path);
     renderTabs();
     saveSession();
-    statusEl.textContent = `adı değişti: ${tab.title}`;
+    statusEl.textContent = t("status.renamed", { name: tab.title });
   } catch (error) {
-    statusEl.textContent = error.message ?? "adı değiştirilemedi";
+    statusEl.textContent = error.message ?? t("status.renameFailed");
   }
 }
 
@@ -644,7 +669,7 @@ async function saveTab(tab, { askForPath = false } = {}) {
   } catch (error) {
     // UC-10/A1: the text stays in memory; the user is told, not silently lost.
     console.error(error);
-    statusEl.textContent = `kaydedilemedi: ${error}`;
+    statusEl.textContent = t("status.saveFailed", { error });
     tab.saving = false;
     flushQueuedSave(tab);
     return;
@@ -683,7 +708,7 @@ async function placeImage(tab, view, source) {
     view.focus();
   } catch (error) {
     // SD-13: say what went wrong; never "rescue" it by embedding base64.
-    statusEl.textContent = `görsel eklenemedi: ${error}`;
+    statusEl.textContent = t("status.imageFailed", { error });
   }
 }
 
@@ -798,7 +823,7 @@ function openRecents(anchor) {
         // Not red — nothing was deleted, something was not found. No file is
         // created, here or anywhere (KR-21, UC-20-K4).
         sayMissing(row, path);
-        statusEl.textContent = `bulunamadı: ${path}`;
+        statusEl.textContent = t("status.notFound", { path });
         recents = forget(recents, path);
         saveSession();
         return;
@@ -814,7 +839,7 @@ function openRecents(anchor) {
   menu.append(document.createElement("hr"));
   const clear = document.createElement("button");
   clear.className = "recents-clear";
-  clear.textContent = "Listeyi temizle";
+  clear.textContent = t("recents.clear");
   clear.onclick = () => {
     menu.close();
     clearRecents();
@@ -829,7 +854,7 @@ function openRecents(anchor) {
 async function followLink(tab, target) {
   const path = resolveAgainst(tab.path, target);
   if (!(await documentExists(path))) {
-    statusEl.textContent = `bulunamadı: ${target}`;
+    statusEl.textContent = t("status.notFound", { path: target });
     return;
   }
   // The way back (18 Tem): where you stood when you left. ONLY link follows
@@ -860,7 +885,7 @@ async function goBack() {
     // The tab was closed since; coming back reopens it (an open like any
     // other — it counts to Son açılanlar, KR-59).
     if (!(await documentExists(entry.path))) {
-      statusEl.textContent = `bulunamadı: ${entry.path}`;
+      statusEl.textContent = t("status.notFound", { path: entry.path });
       return;
     }
     await openDocument(entry.path);
@@ -931,8 +956,7 @@ async function openTransfer() {
   // marks and sending them (KR-57) — are about marks it would not have. The
   // menu entry is disabled too; this guard is for the shortcut.
   if (!source.marks.list().length) {
-    statusEl.textContent =
-      "Bu belgede işaret yok — taşımadan önce metni seçip işaretleyin.";
+    statusEl.textContent = t("status.noMarks");
     return;
   }
 
@@ -970,7 +994,7 @@ async function printCurrent() {
   const tab = transfer.open ? transfer.target : activeTab();
   if (!tab) return;
 
-  statusEl.textContent = "PDF hazırlanıyor…";
+  statusEl.textContent = t("status.pdfPreparing");
   const result = await printDocument({
     markdown: tab.view.state.doc.toString(),
     folder: tab.path ? folderOf(tab.path) : draftFolderSync(),
@@ -980,9 +1004,9 @@ async function printCurrent() {
   });
 
   statusEl.textContent = result.ok
-    ? `PDF yazıldı: ${fileNameOf(result.path)}`
+    ? t("status.pdfWritten", { name: fileNameOf(result.path) })
     : result.error
-      ? `PDF üretilemedi: ${result.error}`
+      ? t("status.pdfFailed", { error: result.error })
       : "";
 }
 
@@ -996,7 +1020,7 @@ async function printPaperCurrent() {
   const tab = transfer.open ? transfer.target : activeTab();
   if (!tab) return;
 
-  statusEl.textContent = "Yazdırılıyor…";
+  statusEl.textContent = t("status.printing");
   const result = await printPaper({
     markdown: tab.view.state.doc.toString(),
     folder: tab.path ? folderOf(tab.path) : draftFolderSync(),
@@ -1004,7 +1028,7 @@ async function printPaperCurrent() {
 
   // Nothing to report when it worked: the paper is the report. Cancelling the
   // dialog is not a failure either — it is the writer changing their mind.
-  statusEl.textContent = result.error ? `yazdırılamadı: ${result.error}` : "";
+  statusEl.textContent = result.error ? t("status.printFailed", { error: result.error }) : "";
 }
 
 // ---- session (UC-02-K1, UC-04) ----------------------------------------------
@@ -1181,9 +1205,14 @@ window.addEventListener("keydown", (event) => {
   }
 });
 
-render();
-// Typography first: the documents should appear already set the way you left
-// them, not reflow a moment after they open.
+// First paint in the OS language: settings.dil defaults to null, so effectiveLang
+// resolves to detectLang() even before the settings file is read. applyLanguage
+// rebuilds the shell (chrome, transfer bar) that was constructed in the default
+// language at import time, then renders.
+applyLanguage();
+// Typography and the stored language override arrive with the settings file;
+// re-apply so the documents appear already set the way you left them.
 loadSettings()
+  .then(() => applyLanguage())
   .then(initDraftFolder)
   .then(restoreSession);

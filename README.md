@@ -1,48 +1,89 @@
+<div align="center">
+
 # MD Plus
 
-Çevrimdışı bir masaüstü **Markdown okuyucu ve yazıcı**. Birden çok `.md` dosyasını
-sekmelerde açar; her sekme hem okunur hem yazılır. Yazma yüzeyi **yerinde
+### Yazın, okuyun, düzenleyin. Hepsi tek pencerede.
+
+Markdown'ın gücü, işaretlerin ötesinde. Sadece içeriğe odaklanın.
+
+**[English](README.en.md)** · Türkçe
+
+</div>
+
+![MD Plus karşılama ekranı](docs/ekran-karsilama.png)
+
+MD Plus, birden çok `.md` dosyasını sekmelerde açan bir masaüstü Markdown
+uygulamasıdır. Her sekme hem okunur hem yazılır; yazma yüzeyi **yerinde
 biçimlendirmedir**: kalın yazınca kalın görünür, ham işaretler yalnız imleç o
-satırdayken belirir — ayrı bir önizleme kipi yoktur.
+satırdayken belirir. Ayrı bir önizleme kipi yoktur, çünkü gerek yoktur.
 
-![Sekmeli yazma yüzeyi](docs/ekran-yazma.png)
+---
 
-## Öne çıkanlar
+## Dört temel
 
-- **Çok sekmeli okuma/yazma.** Sürükle-bırak sıralanan sekmeler; otomatik kayıt
-  ve `.bak` yedeği. Biçim, metni seçince açılan yüzen paletten ve kısayollardan
-  verilir: kalın, italik, başlık, liste, alıntı, kod, callout, görsel, link.
-- **Aktarma.** Belgeler arasında parça taşımak için tam katman: işaretler
-  arasında dolaş, seçtiğin parçayı bir hedef belgeye gönder.
-- **İşaretler ve yorumlar.** Metnin üstüne işaret koy, not düş. Bunlar `.md`
-  dosyasının **içine yazılmaz** — belgenin yanındaki yan kayıtta yaşar; dosya
-  her yerde temiz açılır.
-- **Yapay zekâ katmanı.** Özet, yeniden yazma gibi işler için çoklu sağlayıcı
-  desteği (OpenAI uyumlu, Gemini, Anthropic, Ollama). Tümü isteğe bağlı.
-- **Çevrimdışı PDF çıktısı.** İşaret ve yorumlar PDF'e girmez.
-- **Formül desteği.** KaTeX ile matematiksel gösterim.
+### Çok sekmeli çalışma
 
-## Ekranlar
+Bütün belgeleriniz tek pencerede, sekme sekme elinizin altında. Sekmeler
+sürükle-bırak sıralanır, otomatik kaydedilir ve her kayıtta `.bak` yedeği alınır.
+Biçim, metni seçince açılan **yüzen paletten** ve kısayollardan verilir: kalın,
+italik, başlık, liste, alıntı, kod, callout, görsel, link.
 
-Metni seçince çıkan **yüzen palet** — biçim, işaretleme, yorum ve yapay zekâ, hepsi tek yerde:
+![Yazma yüzeyi ve seçim paleti](docs/ekran-yazma.png)
 
-![Seçim paleti](docs/ekran-palet.png)
+### Belgeler arası aktarma
 
-**Aktarma** katmanı — solda kaynak, sağda hedef; işaretin yanındaki **Taşı** ile seçtiğin parçayı hedef belgeye gönderirsin:
+Bir metnin öne çıkan parçalarını başka bir belgeye saniyeler içinde taşıyın.
+**Aktarma** ekranı sekmelerin üstünde tam bir katman açar: solda kaynak, sağda
+hedef. İşaretler arasında dolaşır (`‹ n/m ›`), seçtiğiniz parçayı işaretin
+yanındaki **Taşı** ile hedef belgeye gönderirsiniz. Aynı parçayı istediğiniz
+kadar tekrar gönderebilirsiniz.
 
-![Aktarma katmanı](docs/ekran-aktarma.png)
+![Aktarma ekranı — solda kaynak, sağda hedef](docs/ekran-aktarma.png)
 
-Görseller belgenin yanındaki `gorseller/` klasörüne kopyalanır ve satır içinde gösterilir; formüller KaTeX ile dizilir:
+### İşaretle ve yorumla
 
-![Gömülü görsel ve biçimli içerik](docs/ekran-gorsel.png)
+Önemli yerleri işaretleyin, notlar alın. Belgeniz tamamen sizin olsun.
+İşaretler ve yorumlar belgenin akışını bozmaz, sağdaki rozetle hizalanır; kaynak
+dosya dışarıdan değişse bile işaretler kendini yeniden bağlamaya çalışır.
 
-## Taşınabilirlik ilkesi
+### Yapay zekâ desteği
 
-Yazılan her biçim standart Markdown'dır; uygulamaya özel hiçbir şey `.md`nin
-içine sızmaz. Renkli kutular `> [!NOTE]` gibi **callout**'larla, görseller
-`gorseller/` klasörüne kopyalanıp standart `![alt](gorseller/x.png)` linkiyle
-verilir. Base64 gömme ve gömülü HTML yoktur. Dosya, her Markdown düzenleyicide
-aynı şekilde açılır.
+Metni toparlasın, kelimelere ilham versin. Kalem yine sizde. İsteğe bağlı yapay
+zekâ katmanı belge menüsünden ve paletten çalışır; **çıktı, işlediğiniz metnin
+dilinde gelir** — İngilizce bir paragraf seçerseniz İngilizce, Türkçe seçerseniz
+Türkçe. İşler:
+
+- **Akıcı alternatif** — aynı içeriği daha akıcı yazar (sayı, ad, formül korunur).
+- **Tamamlayıcı paragraf** — metni yazarın ağzından ilerletir.
+- **Yazım ve noktalama** — yalnız yazımı düzeltir, kelimeyi değiştirmez.
+- **Bilgi denetimi** ve **kaynak önerisi** — yalnız okunur; belgeye giremez.
+- **Özet** — belgeyi ya da seçimi madde madde özetler.
+
+Çoklu sağlayıcı: Gemini, Claude, OpenAI, OpenRouter, NVIDIA, Groq, DeepSeek,
+yerel Ollama ve herhangi bir OpenAI-uyumlu servis (kendi adresinizi girerek).
+Varsayılan **kapalı** — hiçbir model bağlı değilken uygulama tam olarak yapay
+zekâsız hâlidir.
+
+![Belge menüsü — görsel, yazdır, PDF ve özet](docs/ekran-belge.png)
+
+---
+
+## Dahası
+
+- **Görsel** — panodan yapıştırın ya da sürükleyin; belgenin yanındaki
+  `gorseller/` klasörüne kopyalanır, satır içinde gösterilir.
+- **Formül** — `$...$` ile yazılan LaTeX, KaTeX ile dizilir.
+- **PDF ve yazdırma** — belge tek parça basılır; işaret ve yorumlar çıktıya girmez.
+- **Bul ve değiştir** — belge içi arama (`Ctrl+F`) ve değiştirme (`Ctrl+H`),
+  Türkçe'ye doğru büyük/küçük harf katlamasıyla.
+- **Gömülü belge** — bir `.md` linkinin içeriğini yerinde, salt okunur açar.
+- **Son açılanlar**, **içindekiler**, link takibi ve geri dönüş.
+
+## İki dil
+
+Arayüz **Türkçe ve İngilizce**. Açılışta işletim sisteminizin diline uyar,
+Ayarlar'dan değiştirilir. Yapay zekâ çıktısı ise arayüzden bağımsız olarak
+**metnin diline** göre gelir.
 
 ## Yığın
 

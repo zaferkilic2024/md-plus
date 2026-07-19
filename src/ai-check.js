@@ -25,6 +25,8 @@
 // The line between them: a hard gate is something the writer cannot be expected
 // to notice. Nobody proofreads LaTeX by eye.
 
+import { t } from "./i18n.js";
+
 /** Formulas, exactly as written. `$…$` is the only maths MD Plus writes. */
 const formulasOf = (text) => (text.match(/\$[^$\n]+\$/g) ?? []).map((f) => f.trim());
 
@@ -44,11 +46,11 @@ const HTML = /<\/?[a-z][^>]*>/i;
  * handing over a damaged paragraph (KR-45).
  */
 export function hardGate(source, suggestion, { kind = "rewrite" } = {}) {
-  if (!suggestion.trim()) return "Model boş bir öneri döndürdü.";
+  if (!suggestion.trim()) return t("aicheck.empty");
 
   // The one thing that can never reach a .md, whoever wrote it (portability law).
   if (HTML.test(suggestion)) {
-    return "Öneri kullanılamadı: model HTML üretti — MD Plus HTML yazmaz.";
+    return t("aicheck.html");
   }
 
   // A new paragraph is allowed to be new — including its maths.
@@ -70,14 +72,14 @@ export function hardGate(source, suggestion, { kind = "rewrite" } = {}) {
   const after = formulasOf(suggestion);
   if (before.join("") !== after.join("")) {
     return after.length > before.length
-      ? "Öneri kullanılamadı: model metinde olmayan bir formül ekledi."
-      : "Öneri kullanılamadı: model formülleri değiştirdi ya da düşürdü.";
+      ? t("aicheck.formulaAdded")
+      : t("aicheck.formulaChanged");
   }
 
   const linksBefore = linksOf(source);
   const linksAfter = linksOf(suggestion);
   if (linksBefore.join("") !== linksAfter.join("")) {
-    return "Öneri kullanılamadı: model linkleri değiştirdi.";
+    return t("aicheck.linkChanged");
   }
 
   // Kalın/italik değişimi ARTIK veto DEĞİL (17 Tem 2026, Zafer). Eskiden sert
@@ -126,7 +128,7 @@ export function flags(source, suggestion, { kind = "rewrite" } = {}) {
       found.push({
         tur: "eklenen-formul",
         kelimeler: [],
-        soz: `formül ekledi: ${eklenen.join(" ")}`,
+        soz: t("aicheck.flag.formulaAdded", { list: eklenen.join(" ") }),
       });
     }
   }
@@ -147,7 +149,7 @@ export function flags(source, suggestion, { kind = "rewrite" } = {}) {
         soz:
           degisen.length <= 8
             ? degisen.map((d) => `${d.once} → ${d.sonra}`).join(", ")
-            : `${degisen.length} kelime değişti — yazım düzeltmesi mi, yeniden yazma mı?`,
+            : t("aicheck.flag.wordsChanged", { n: degisen.length }),
       });
     }
   }
@@ -157,7 +159,7 @@ export function flags(source, suggestion, { kind = "rewrite" } = {}) {
     found.push({
       tur: "uydurulan-sayi",
       kelimeler: newNumbers,
-      soz: `metinde olmayan sayı: ${newNumbers.join(", ")}`,
+      soz: t("aicheck.flag.newNumber", { list: newNumbers.join(", ") }),
     });
   }
 
@@ -166,7 +168,7 @@ export function flags(source, suggestion, { kind = "rewrite" } = {}) {
     found.push({
       tur: "uydurulan-ad",
       kelimeler: newNames,
-      soz: `metinde olmayan ad: ${newNames.join(", ")}`,
+      soz: t("aicheck.flag.newName", { list: newNames.join(", ") }),
     });
   }
 
@@ -178,7 +180,7 @@ export function flags(source, suggestion, { kind = "rewrite" } = {}) {
       found.push({
         tur: "kaybolan-ad",
         kelimeler: lostNames,
-        soz: `düşen ad: ${lostNames.join(", ")}`,
+        soz: t("aicheck.flag.lostName", { list: lostNames.join(", ") }),
       });
     }
 
@@ -187,15 +189,15 @@ export function flags(source, suggestion, { kind = "rewrite" } = {}) {
       found.push({
         tur: "kaybolan-sayi",
         kelimeler: lostNumbers,
-        soz: `düşen sayı: ${lostNumbers.join(", ")}`,
+        soz: t("aicheck.flag.lostNumber", { list: lostNumbers.join(", ") }),
       });
     }
 
     const ratio = suggestion.length / source.length;
     if (ratio > 1.35) {
-      found.push({ tur: "uzadi", kelimeler: [], soz: `%${Math.round((ratio - 1) * 100)} uzadı` });
+      found.push({ tur: "uzadi", kelimeler: [], soz: t("aicheck.flag.longer", { pct: Math.round((ratio - 1) * 100) }) });
     } else if (ratio < 0.7) {
-      found.push({ tur: "kisaldi", kelimeler: [], soz: `%${Math.round((1 - ratio) * 100)} kısaldı` });
+      found.push({ tur: "kisaldi", kelimeler: [], soz: t("aicheck.flag.shorter", { pct: Math.round((1 - ratio) * 100) }) });
     }
   }
 

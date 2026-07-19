@@ -17,6 +17,7 @@ import {
 import { jobName, provider, reportJobs, textJobs } from "./ai.js";
 import { appMode } from "./context.js";
 import { GLYPH } from "./strip.js";
+import { t } from "./i18n.js";
 
 const icon = (paths) =>
   `<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round">${paths}</svg>`;
@@ -39,29 +40,29 @@ const imzaOf = (metin, rapor) =>
   [...metin, ...rapor].map((j) => `${j}:${provider(j)?.model ?? ""}`).join("|");
 
 const BUTTONS = [
-  { title: "Kalın", label: "B", style: "font-weight:700", run: toggleBold },
-  { title: "İtalik", label: "I", style: "font-style:italic", run: toggleItalic },
-  { title: "Başlık", heading: true },
+  { titleKey: "palette.bold", label: "B", style: "font-weight:700", run: toggleBold },
+  { titleKey: "palette.italic", label: "I", style: "font-style:italic", run: toggleItalic },
+  { titleKey: "palette.heading", heading: true },
   {
-    title: "Liste",
+    titleKey: "palette.list",
     html: icon('<path d="M8 6h12M8 12h12M8 18h12M3.5 6h.01M3.5 12h.01M3.5 18h.01"/>'),
     run: toggleList,
   },
   {
-    title: "Alıntı",
+    titleKey: "palette.quote",
     html: icon('<path d="M5 5v14"/><path d="M10 8h9M10 12h9M10 16h6"/>'),
     run: toggleQuote,
   },
   {
-    title: "Kod",
+    titleKey: "palette.code",
     label: "</>",
     style: "font-family:var(--mono);font-size:12px",
     run: toggleCode,
   },
-  { title: "Callout", callout: true },
-  { title: "Link", html: icon('<path d="M10 13a5 5 0 0 0 7 0l2-2a5 5 0 0 0-7-7l-1 1"/><path d="M14 11a5 5 0 0 0-7 0l-2 2a5 5 0 0 0 7 7l1-1"/>'), link: true },
+  { titleKey: "palette.callout", callout: true },
+  { titleKey: "palette.link", html: icon('<path d="M10 13a5 5 0 0 0 7 0l2-2a5 5 0 0 0-7-7l-1 1"/><path d="M14 11a5 5 0 0 0-7 0l-2 2a5 5 0 0 0 7 7l1-1"/>'), link: true },
   {
-    title: "Kopyala",
+    titleKey: "palette.copy",
     html: icon('<rect x="9" y="9" width="11" height="11" rx="2"/><path d="M5 15V5a2 2 0 0 1 2-2h10"/>'),
     run: (view) => {
       const sel = view.state.selection.main;
@@ -72,9 +73,9 @@ const BUTTONS = [
 ];
 
 const CALLOUTS = [
-  { label: "Not", type: "NOTE" },
-  { label: "Uyarı", type: "WARNING" },
-  { label: "İpucu", type: "TIP" },
+  { labelKey: "palette.calloutNote", type: "NOTE" },
+  { labelKey: "palette.calloutWarning", type: "WARNING" },
+  { labelKey: "palette.calloutTip", type: "TIP" },
 ];
 
 class Palette {
@@ -121,9 +122,9 @@ class Palette {
     for (const spec of BUTTONS) {
       if (spec.heading) {
         this.dom.append(this.submenu("H", [1, 2, 3].map((level) => ({
-          label: `Başlık ${level}`,
+          label: t("palette.headingN", { n: level }),
           run: setHeading(level),
-        })).concat([{ label: "Paragraf", run: setHeading(0) }])));
+        })).concat([{ label: t("palette.paragraph"), run: setHeading(0) }])));
         continue;
       }
       if (spec.callout) {
@@ -131,7 +132,7 @@ class Palette {
           this.submenu(
             icon('<rect x="3" y="5" width="18" height="14" rx="2"/><path d="M7 5v14"/>'),
             CALLOUTS.map((each) => ({
-              label: each.label,
+              label: t(each.labelKey),
               run: setCallout(each.type),
             })),
           ),
@@ -140,7 +141,7 @@ class Palette {
       }
 
       const button = document.createElement("button");
-      button.title = spec.title;
+      button.title = t(spec.titleKey);
       if (spec.html) button.innerHTML = spec.html;
       else button.textContent = spec.label;
       if (spec.style) button.setAttribute("style", spec.style);
@@ -197,12 +198,12 @@ class Palette {
 
     // Slot 1: the mark. Slot 2: the comment.
     this.yeni = [
-      action("İşaretle · Ctrl+Enter", "pen", () => this.onMark.mark({})),
-      action("İşaretle ve yorumla", "note", () => this.onMark.mark({ comment: true })),
+      action(t("palette.mark"), "pen", () => this.onMark.mark({})),
+      action(t("palette.markComment"), "note", () => this.onMark.mark({ comment: true })),
     ];
     this.duran = [
-      action("İşareti sil", "trash", () => this.onMark.remove(this.durur)),
-      action("Yorumla", "note", () => this.onMark.comment(this.durur)),
+      action(t("palette.markRemove"), "trash", () => this.onMark.remove(this.durur)),
+      action(t("palette.comment"), "note", () => this.onMark.comment(this.durur)),
     ];
 
     // Interleaved, so each slot is one place on screen: [1 1] [2 2], with one of
@@ -283,7 +284,7 @@ class Palette {
       items,
     );
     menu.classList.add("palette-suggest");
-    menu.querySelector("button")?.setAttribute("title", "Yapay zekâ önerileri");
+    menu.querySelector("button")?.setAttribute("title", t("palette.aiTitle"));
 
     // Its own rule, named: the palette has two of them now, and rebuilding the
     // suggestion group used to take out whichever came first — which, once the
@@ -362,6 +363,14 @@ class Palette {
     }
   }
 
+  /** Rebuilds the buttons in the current language (called on a language change).
+      The palette is built once per surface, so it has to be told to re-read. */
+  relocalize() {
+    this.dom.replaceChildren();
+    this.build();
+    this.hide();
+  }
+
   update(update) {
     // Tucked away by the shortcut: stay hidden, even through new selections,
     // until the writer brings it back.
@@ -429,3 +438,9 @@ class Palette {
 
 export const floatingPalette = (onLink, onSuggest, onMark) =>
   ViewPlugin.define((view) => new Palette(view, onLink, onSuggest, onMark));
+
+/** Every live palette, re-labelled — the palettes are built once per surface,
+    so a language change has to reach the ones already standing. */
+export function relocalizePalettes() {
+  for (const palette of palettes) palette.relocalize();
+}

@@ -10,6 +10,7 @@
 import { StateField } from "@codemirror/state";
 import { Decoration, EditorView, WidgetType } from "@codemirror/view";
 import { convertFileSrc } from "@tauri-apps/api/core";
+import { t } from "./i18n.js";
 
 class ImageWidget extends WidgetType {
   constructor(source, alt) {
@@ -31,7 +32,7 @@ class ImageWidget extends WidgetType {
     image.alt = this.alt;
     image.onerror = () => {
       figure.classList.add("cm-image-missing");
-      figure.textContent = `görsel bulunamadı: ${this.alt || "?"}`;
+      figure.textContent = t("editor.imageNotFound", { alt: this.alt || "?" });
     };
     figure.append(image);
     return figure;

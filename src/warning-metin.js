@@ -8,6 +8,8 @@
 // list of gateways, nothing more. Kept here, `test/uyari.test.mjs` reaches it
 // without touching ai.js.
 
+import { t } from "./i18n.js";
+
 /**
  * The true sentence for the models routed right now (KR-47, KR-53).
  *
@@ -23,8 +25,8 @@
  */
 export function warningText(gateways) {
   const nereye = gateways.some((each) => each.agaCikar)
-    ? "Yazdığın metin sağlayıcıya gider"
-    : "Yazdığın metin bu bilgisayardan çıkmaz";
-  const ucret = gateways.some((each) => each.ucretli) ? ", ücretli olabilir" : "";
-  return `${nereye}${ucret} ve model uydurabilir, yazdığını doğrula.`;
+    ? t("warn.remote")
+    : t("warn.local");
+  const ucret = gateways.some((each) => each.ucretli) ? t("warn.cost") : "";
+  return `${nereye}${ucret}${t("warn.tail")}`;
 }

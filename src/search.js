@@ -18,6 +18,7 @@
 import { Decoration, EditorView, ViewPlugin } from "@codemirror/view";
 import { StateEffect, StateField } from "@codemirror/state";
 import { GLYPH, icon, iconAction } from "./strip.js";
+import { t } from "./i18n.js";
 
 /** Turkish-correct folding: İ→i, I→ı. The whole reason this is hand-written. */
 const fold = (text) => text.toLocaleLowerCase("tr");
@@ -152,7 +153,7 @@ class Search {
 
     this.field = document.createElement("input");
     this.field.type = "text";
-    this.field.placeholder = "Belgede ara…";
+    this.field.placeholder = t("search.placeholder");
     this.field.oninput = () => this.run();
     this.field.onkeydown = (event) => {
       if (event.key === "Escape") {
@@ -167,16 +168,13 @@ class Search {
     this.count = document.createElement("span");
     this.count.className = "search-count";
 
+    this.prevButton = iconAction("prev", t("search.prev"), () => this.go(-1));
+    this.nextButton = iconAction("next", t("search.next"), () => this.go(1));
+    this.closeButton = iconAction("close", t("search.close"), () => this.close());
+
     const find = document.createElement("div");
     find.className = "search-row";
-    find.append(
-      lead("search"),
-      this.field,
-      this.count,
-      iconAction("prev", "Önceki (Shift+Enter)", () => this.go(-1)),
-      iconAction("next", "Sonraki (Enter)", () => this.go(1)),
-      iconAction("close", "Kapat (Esc)", () => this.close()),
-    );
+    find.append(lead("search"), this.field, this.count, this.prevButton, this.nextButton, this.closeButton);
 
     // The replace row is not shown to everyone who searches. Ctrl+F is a reading
     // act — you are looking for something — and most of the time it ends there.
@@ -187,7 +185,7 @@ class Search {
 
     this.swapField = document.createElement("input");
     this.swapField.type = "text";
-    this.swapField.placeholder = "Yerine…";
+    this.swapField.placeholder = t("search.replacePlaceholder");
     this.swapField.onkeydown = (event) => {
       if (event.key === "Escape") {
         event.preventDefault();
@@ -208,14 +206,14 @@ class Search {
     // second, where the hand does not land by accident.
     this.swapOne = document.createElement("button");
     this.swapOne.className = "note-named";
-    this.swapOne.textContent = "Değiştir";
-    this.swapOne.title = "Bulunanı değiştir (Enter)";
+    this.swapOne.textContent = t("search.replaceOne");
+    this.swapOne.title = t("search.replaceOneTitle");
     this.swapOne.onclick = () => this.replaceOne();
 
     this.swapAll = document.createElement("button");
     this.swapAll.className = "note-named";
-    this.swapAll.textContent = "Tümü";
-    this.swapAll.title = "Tümünü değiştir (Ctrl+Enter)";
+    this.swapAll.textContent = t("search.replaceAll");
+    this.swapAll.title = t("search.replaceAllTitle");
     this.swapAll.onclick = () => this.replaceAll();
 
     this.swapRow.append(lead("swap"), this.swapField, this.swapOne, this.swapAll);
@@ -268,7 +266,7 @@ class Search {
     const on = show && this.writable;
     this.swapRow.hidden = !on;
     this.toggle.classList.toggle("open", on);
-    this.toggle.title = on ? "Değiştirmeyi kapat" : "Değiştir · Ctrl+H";
+    this.toggle.title = on ? t("search.closeReplace") : t("search.openReplace");
     if (on) {
       this.swapField.select();
       this.swapField.focus();
@@ -361,7 +359,21 @@ class Search {
 
     // Say what happened. Replacing 60 words silently is the app changing the
     // document more than any other single act, and saying nothing about it.
-    this.said(`${count} yerde değişti`);
+    this.said(t("search.replaced", { n: count }));
+  }
+
+  /** Re-reads its labels in the current language (called on a language change). */
+  relocalize() {
+    this.field.placeholder = t("search.placeholder");
+    this.prevButton.title = t("search.prev");
+    this.nextButton.title = t("search.next");
+    this.closeButton.title = t("search.close");
+    this.swapField.placeholder = t("search.replacePlaceholder");
+    this.swapOne.textContent = t("search.replaceOne");
+    this.swapOne.title = t("search.replaceOneTitle");
+    this.swapAll.textContent = t("search.replaceAll");
+    this.swapAll.title = t("search.replaceAllTitle");
+    this.showSwap(!this.swapRow.hidden); // refreshes the toggle title
   }
 
   /** A word from the strip, in the strip, gone on the next keystroke. */
@@ -503,4 +515,10 @@ export function openReplace(view) {
  */
 export function closeAllSearch() {
   for (const search of searchers.values()) search.close({ quiet: true });
+}
+
+/** Every search box, re-labelled — the boxes are built once per surface, so a
+    language change has to reach the ones already standing. */
+export function relocalizeSearch() {
+  for (const search of searchers.values()) search.relocalize();
 }

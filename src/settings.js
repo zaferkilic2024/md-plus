@@ -9,6 +9,7 @@
 
 import { appDataDir } from "@tauri-apps/api/path";
 import { exists, mkdir, readTextFile, writeTextFile } from "@tauri-apps/plugin-fs";
+import { detectLang, setLang } from "./i18n.js";
 
 const FILE = "ayarlar.json";
 
@@ -28,6 +29,10 @@ export const FONTS = {
 };
 
 const DEFAULTS = {
+  // null means "follow the OS locale" (detectLang); a stored "tr"/"en" overrides
+  // it (Zafer, 19 Tem). The effective language is settings.dil ?? detectLang().
+  dil: null,
+
   yaziTipi: "serif",
   punto: 18.5,
   satirAraligi: 1.78,
@@ -85,6 +90,10 @@ export function applySettings() {
 
 export const getSettings = () => ({ ...settings });
 
+/** The language actually in force: the stored choice, or the OS locale when the
+    choice is "Otomatik" (null). The single source both settings and i18n read. */
+export const effectiveLang = () => settings.dil || detectLang();
+
 export async function loadSettings() {
   try {
     const path = await pathOf();
@@ -110,12 +119,14 @@ export async function loadSettings() {
     // defaults and carry on.
     settings = { ...DEFAULTS };
   }
+  setLang(effectiveLang());
   applySettings();
   return getSettings();
 }
 
 export async function updateSetting(key, value) {
   settings = { ...settings, [key]: value };
+  if (key === "dil") setLang(effectiveLang());
   applySettings();
   try {
     await writeTextFile(await pathOf(), JSON.stringify(settings, null, 2));

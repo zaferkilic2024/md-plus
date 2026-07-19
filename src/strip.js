@@ -20,6 +20,8 @@
 // with a comment box in it, which meant the commonest thing you want from a mark
 // arrived as a small icon under an empty textarea nobody asked for.
 
+import { t } from "./i18n.js";
+
 export const icon = (paths, size = 14) =>
   `<svg width="${size}" height="${size}" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round">${paths}</svg>`;
 
@@ -207,10 +209,10 @@ export class Strip {
         tools.className = "note-row note-tools";
         tools.append(
           spacer(),
-          iconAction("pen", "Yorumu düzenle", () => this.write()),
+          iconAction("pen", t("strip.editComment"), () => this.write()),
           iconAction(
             "trash",
-            "İşareti sil (aktarıldıysa hedefteki metne dokunulmaz)",
+            t("strip.removeMark"),
             () => on.remove(),
             "danger",
           ),
@@ -232,15 +234,15 @@ export class Strip {
       // one, it moves the piece in. Never "Yine taşı": we do not follow what
       // happens over there (KR-33), so if the writer deleted it by hand, "yine"
       // would be a claim we cannot make.
-      row.append(namedAction("send", "Taşı", () => on.send()));
+      row.append(namedAction("send", t("strip.move"), () => on.send()));
       // No comment here: Aktarma neither writes nor reads comments (KR-57).
     } else {
       row.append(
-        namedAction("note", "Yorumla", () => this.write()),
+        namedAction("note", t("strip.comment"), () => this.write()),
         spacer(),
         iconAction(
           "trash",
-          "İşareti sil (aktarıldıysa hedefteki metne dokunulmaz)",
+          t("strip.removeMark"),
           () => on.remove(),
           "danger",
         ),
@@ -267,7 +269,7 @@ export class Strip {
     wrap.className = "note-writing";
 
     const field = document.createElement("textarea");
-    field.placeholder = "Yorum…";
+    field.placeholder = t("strip.commentPlaceholder");
     field.value = mark.yorum?.metin ?? "";
     field.rows = 3;
 
@@ -294,7 +296,7 @@ export class Strip {
     actions.className = "note-row";
     actions.append(
       spacer(),
-      iconAction("check", "Tamam (Esc)", () => {
+      iconAction("check", t("strip.done"), () => {
         commit();
         this.hide();
       }),

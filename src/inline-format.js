@@ -21,6 +21,7 @@
 
 import { Decoration, ViewPlugin, WidgetType } from "@codemirror/view";
 import { ensureSyntaxTree, syntaxTree } from "@codemirror/language";
+import { t } from "./i18n.js";
 
 const hidden = Decoration.replace({});
 const dimmed = Decoration.mark({ class: "cm-mark" });
@@ -40,11 +41,12 @@ const HIDEABLE = new Set([
 // so they get the invisible + hanging-indent treatment.
 const LEADING = new Set(["HeaderMark", "QuoteMark"]);
 
-// The three callout types (IS-03). Anything else stays a plain quote.
+// The three callout types (IS-03). Anything else stays a plain quote. The label
+// is localized at build time (t below); the file always keeps its plain [!NOTE].
 const CALLOUT_KINDS = {
-  NOTE: { slug: "note", label: "NOT" },
-  WARNING: { slug: "warning", label: "UYARI" },
-  TIP: { slug: "tip", label: "İPUCU" },
+  NOTE: { slug: "note", labelKey: "callout.note" },
+  WARNING: { slug: "warning", labelKey: "callout.warning" },
+  TIP: { slug: "tip", labelKey: "callout.tip" },
 };
 
 class LabelWidget extends WidgetType {
@@ -157,7 +159,7 @@ function buildDecorations(view) {
             const at = first.from + marker.index;
             decorations.push(
               Decoration.replace({
-                widget: new LabelWidget(kind.label),
+                widget: new LabelWidget(t(kind.labelKey)),
               }).range(at, at + marker[0].length),
             );
           }

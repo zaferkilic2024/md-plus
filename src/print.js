@@ -11,6 +11,7 @@
 import { marked } from "marked";
 import katex from "katex";
 import { convertFileSrc } from "@tauri-apps/api/core";
+import { t } from "./i18n.js";
 
 const FORMULA = /\$\$([\s\S]+?)\$\$|\$([^$\n]+?)\$/g;
 
@@ -31,15 +32,17 @@ function typesetFormulas(markdown) {
   });
 }
 
-/** Callouts are quote blocks on disk; on paper they become their box (KR-07). */
-const CALLOUT_LABELS = { NOTE: "NOT", WARNING: "UYARI", TIP: "İPUCU" };
+/** Callouts are quote blocks on disk; on paper they become their box (KR-07).
+    The display label is localized; the file keeps its plain [!NOTE] either way. */
+const CALLOUT_LABEL_KEYS = { NOTE: "callout.note", WARNING: "callout.warning", TIP: "callout.tip" };
 
 function renderCallouts(html) {
   return html.replace(
     /<blockquote>\s*<p>\s*\[!(\w+)\]\s*(?:<br\s*\/?>)?\s*/gi,
     (whole, type) => {
-      const kind = CALLOUT_LABELS[type.toUpperCase()];
-      if (!kind) return whole;
+      const key = CALLOUT_LABEL_KEYS[type.toUpperCase()];
+      if (!key) return whole;
+      const kind = t(key);
       return `<blockquote class="callout callout-${type.toLowerCase()}"><p class="callout-label">${kind}</p><p>`;
     },
   );
@@ -138,7 +141,7 @@ async function onSheet(markdown, folder, use) {
  */
 export async function printDocument({ markdown, folder, title, save, toPdf }) {
   const path = await save({
-    defaultPath: `${title ?? "belge"}.pdf`,
+    defaultPath: `${title ?? t("print.defaultName")}.pdf`,
     filters: [{ name: "PDF", extensions: ["pdf"] }],
   });
   if (!path) return { ok: false };

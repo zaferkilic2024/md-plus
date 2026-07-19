@@ -4,6 +4,8 @@
 // that nothing may be discarded silently — so "Vazgeç" has to be a real answer,
 // not the absence of one.
 
+import { t } from "./i18n.js";
+
 /**
  * @param {string} message
  * @param {{label: string, value: string, primary?: boolean}[]} choices
@@ -95,12 +97,12 @@ export function askText(message, initial = "") {
     }
 
     const iptal = document.createElement("button");
-    iptal.textContent = "Vazgeç";
+    iptal.textContent = t("dialog.cancel");
     iptal.onclick = () => finish(null);
 
     const tamam = document.createElement("button");
     tamam.className = "primary";
-    tamam.textContent = "Tamam";
+    tamam.textContent = t("dialog.ok");
     tamam.onclick = () => finish(field.value);
 
     row.append(iptal, tamam);

@@ -14,6 +14,7 @@ import { EditorView } from "@codemirror/view";
 import { makeAnchor, reanchor, readSidecar, resolveAnchor, writeSidecar } from "./sidecar.js";
 import { liveMarks, setMarks } from "./surface.js";
 import { Strip } from "./strip.js";
+import { t } from "./i18n.js";
 
 const newId = () => `i_${Math.random().toString(36).slice(2, 8)}`;
 
@@ -156,7 +157,7 @@ export class MarkStore {
 
     if (dropped) {
       await this.write();
-      this.say(`${dropped} işaretin metni belgede bulunamadı — işaretler kaldırıldı.`);
+      this.say(t("status.marksDropped", { n: dropped }));
     }
   }
 
@@ -218,7 +219,7 @@ export class MarkStore {
     if (dropped || moved) this.apply(placed, { etkin });
 
     await this.write();
-    if (dropped) this.say(`${dropped} işaretin metni silindi — işaretler kaldırıldı.`);
+    if (dropped) this.say(t("status.marksDeleted", { n: dropped }));
   }
 
   // ---- the marks on the surface ---------------------------------------------

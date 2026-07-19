@@ -22,11 +22,13 @@ import {
   PROVIDERS,
   connectionModels,
   jobName,
+  providerLabel,
   providerMeta,
   reportJobs,
   textJobs,
 } from "./ai.js";
 import { shortcutGroups } from "./shortcuts.js";
+import { LANGS, t } from "./i18n.js";
 
 /** Which CSS variable each numeric reading setting drives — so a drag can
     preview live without persisting on every pixel. Mirrors applySettings(). */
@@ -129,9 +131,9 @@ function aiSection() {
   const body = document.createElement("div");
 
   const sekmeler = [
-    ["Bağlantılar", baglantilarTab],
-    ["Modeller", modellerTab],
-    ["İşler", islerTab],
+    [t("settings.sub.connections"), baglantilarTab],
+    [t("settings.sub.models"), modellerTab],
+    [t("settings.sub.jobs"), islerTab],
   ];
 
   let etkin = null;
@@ -169,7 +171,7 @@ function baglantilarTab(render) {
 
     const ad = document.createElement("input");
     ad.className = "ai-mini ai-conn-ad";
-    ad.placeholder = "ad (örn. OpenRouter#1)";
+    ad.placeholder = t("settings.conn.namePlaceholder");
     ad.value = b.ad ?? "";
     ad.oninput = () => guncelleBaglanti(b.id, { ad: ad.value });
 
@@ -178,7 +180,7 @@ function baglantilarTab(render) {
     for (const s of SAGLAYICILAR) {
       const o = document.createElement("option");
       o.value = s.id;
-      o.textContent = s.ad;
+      o.textContent = providerLabel(s);
       o.selected = b.tur === s.id;
       tur.append(o);
     }
@@ -194,7 +196,7 @@ function baglantilarTab(render) {
       const key = document.createElement("input");
       key.type = "password";
       key.className = "ai-mini ai-conn-key";
-      key.placeholder = "anahtar";
+      key.placeholder = t("settings.conn.keyPlaceholder");
       key.value = b.anahtar ?? "";
       let bekle = null;
       key.oninput = () => {
@@ -210,7 +212,7 @@ function baglantilarTab(render) {
     const sil = document.createElement("button");
     sil.className = "ai-sil";
     sil.textContent = "✕";
-    sil.title = "Bağlantıyı sil";
+    sil.title = t("settings.conn.delete");
     sil.onclick = async () => {
       await setYZ({ baglantilar: yz().baglantilar.filter((x) => x.id !== b.id) });
       render();
@@ -223,7 +225,7 @@ function baglantilarTab(render) {
     if (saglayiciMeta(b.tur)?.baseUrlKullanicidan) {
       const adres = document.createElement("input");
       adres.className = "ai-mini ai-conn-adres";
-      adres.placeholder = "adres (örn. https://api.x.ai/v1)";
+      adres.placeholder = t("settings.conn.addressPlaceholder");
       adres.value = b.baseUrl ?? "";
       let bekleU = null;
       adres.oninput = () => {
@@ -239,7 +241,7 @@ function baglantilarTab(render) {
 
   const ekle = document.createElement("button");
   ekle.className = "ai-ekle";
-  ekle.textContent = "+ Bağlantı ekle";
+  ekle.textContent = t("settings.conn.add");
   ekle.onclick = async () => {
     await setYZ({
       baglantilar: [...yz().baglantilar, { id: yeniId(), ad: "", tur: "gemini", anahtar: "" }],
@@ -263,7 +265,7 @@ function modellerTab(render) {
   if (!yz().baglantilar.length) {
     const not = document.createElement("p");
     not.className = "ai-note";
-    not.textContent = "Önce bir bağlantı ekleyin — modeller ona bağlanır.";
+    not.textContent = t("settings.model.needConnection");
     wrap.append(not);
     return wrap;
   }
@@ -274,7 +276,7 @@ function modellerTab(render) {
 
   const ekle = document.createElement("button");
   ekle.className = "ai-ekle";
-  ekle.textContent = "+ Model ekle";
+  ekle.textContent = t("settings.model.add");
   ekle.onclick = async () => {
     const ilk = yz().baglantilar[0];
     await setYZ({
@@ -295,7 +297,7 @@ function modelRow(m, render) {
 
   const ad = document.createElement("input");
   ad.className = "ai-mini ai-conn-ad";
-  ad.placeholder = "ad (örn. nemotron)";
+  ad.placeholder = t("settings.model.namePlaceholder");
   ad.value = m.ad ?? "";
   ad.oninput = () => guncelleModel(m.id, { ad: ad.value });
 
@@ -304,7 +306,7 @@ function modelRow(m, render) {
   for (const b of yz().baglantilar) {
     const o = document.createElement("option");
     o.value = b.id;
-    o.textContent = b.ad || saglayiciMeta(b.tur)?.ad || "bağlantı";
+    o.textContent = b.ad || providerLabel(saglayiciMeta(b.tur)) || t("settings.conn.fallbackName");
     o.selected = b.id === m.baglantiId;
     baglanti.append(o);
   }
@@ -312,7 +314,7 @@ function modelRow(m, render) {
   const sil = document.createElement("button");
   sil.className = "ai-sil";
   sil.textContent = "✕";
-  sil.title = "Modeli sil";
+  sil.title = t("settings.model.delete");
   sil.onclick = async () => {
     await setYZ({ modeller: yz().modeller.filter((x) => x.id !== m.id) });
     render();
@@ -327,7 +329,7 @@ function modelRow(m, render) {
   const model = document.createElement("input");
   model.className = "ai-mini ai-model-ara";
   model.setAttribute("list", liste.id);
-  model.placeholder = "model — yazınca aranır";
+  model.placeholder = t("settings.model.searchPlaceholder");
   model.value = m.model ?? "";
   model.oninput = () => guncelleModel(m.id, { model: model.value.trim() });
 
@@ -353,7 +355,7 @@ function modelRow(m, render) {
       // options arrive; re-setting the attribute forces it to pick them up.
       model.removeAttribute("list");
       model.setAttribute("list", liste.id);
-      durum.textContent = `${modeller.length} model`;
+      durum.textContent = t("settings.model.count", { n: modeller.length });
     } catch (hata) {
       durum.textContent = hata.message;
     }
@@ -381,15 +383,15 @@ function islerTab() {
   if (!yz().modeller.length) {
     const not = document.createElement("p");
     not.className = "ai-note";
-    not.textContent = "Önce Modeller sekmesinde model tanımlayın; işlere onları atarsınız.";
+    not.textContent = t("settings.jobs.needModel");
     wrap.append(not);
     return wrap;
   }
 
-  const adOf = (m) => m.ad || m.model || "adsız";
+  const adOf = (m) => m.ad || m.model || t("settings.jobs.unnamed");
   const detayOf = (m) => {
     const b = yz().baglantilar.find((x) => x.id === m.baglantiId);
-    return `${b?.ad || saglayiciMeta(b?.tur)?.ad || "?"} · ${m.model || "model seçilmedi"}`;
+    return `${b?.ad || providerLabel(saglayiciMeta(b?.tur)) || "?"} · ${m.model || t("settings.jobs.noModelChosen")}`;
   };
 
   for (const job of [...textJobs(), ...reportJobs()]) {
@@ -403,7 +405,7 @@ function islerTab() {
     const sec = document.createElement("select");
     sec.className = "ai-mini ai-mini-model";
 
-    const kapali = new Option("Kapalı", "");
+    const kapali = new Option(t("settings.jobs.off"), "");
     kapali.selected = !yz().isler[job];
     sec.append(kapali);
 
@@ -442,17 +444,61 @@ function islerTab() {
 }
 
 
+/**
+ * The interface language row. "Otomatik" (empty value) follows the OS locale;
+ * "Türkçe"/"English" pin it. Changing it persists the choice and asks the shell
+ * to re-label itself live (main.js listens for "dil-degisti") — no restart, so
+ * an unsaved draft is never lost to a reload.
+ */
+function languageRow() {
+  const row = document.createElement("div");
+  row.className = "type-row";
+
+  const label = document.createElement("span");
+  label.className = "type-label";
+  label.textContent = t("settings.language");
+
+  const select = document.createElement("select");
+  select.className = "ai-mini";
+  const stored = getSettings().dil ?? "";
+
+  const auto = new Option(t("settings.language.auto"), "");
+  auto.selected = stored === "";
+  select.append(auto);
+
+  for (const [code, name] of Object.entries(LANGS)) {
+    const option = new Option(name, code);
+    option.selected = stored === code;
+    select.append(option);
+  }
+
+  select.onchange = async () => {
+    await updateSetting("dil", select.value || null);
+    // The shell is built once; tell it to re-read every label in the new
+    // language. Reopening Settings picks it up on its own (it rebuilds on open).
+    window.dispatchEvent(new CustomEvent("dil-degisti"));
+  };
+
+  row.append(label, select);
+  return row;
+}
+
 /** The reading tab: everything that changes how the document looks to you. */
 function readingTab() {
   const wrap = document.createElement("div");
   const renders = []; // every slider registers its refresh here, for Reset
+
+  // Language sits at the top: it is an app-display choice like the typeface, and
+  // Reading is where those live (there is no separate General tab). "Otomatik"
+  // follows the OS; a pick overrides it, and the whole UI re-labels live.
+  wrap.append(languageRow());
 
   const faces = document.createElement("div");
   faces.className = "type-row";
 
   const facesLabel = document.createElement("span");
   facesLabel.className = "type-label";
-  facesLabel.textContent = "Yazı tipi";
+  facesLabel.textContent = t("settings.reading.font");
 
   const choices = document.createElement("div");
   choices.className = "type-faces";
@@ -466,7 +512,7 @@ function readingTab() {
   for (const [key, font] of Object.entries(FONTS)) {
     const button = document.createElement("button");
     button.dataset.font = key;
-    button.textContent = font.label;
+    button.textContent = t(`settings.font.${key}`);
     button.style.fontFamily = font.stack;
     button.onclick = () => updateSetting("yaziTipi", key).then(paint);
     choices.append(button);
@@ -476,14 +522,14 @@ function readingTab() {
   faces.append(facesLabel, choices);
   wrap.append(faces);
 
-  wrap.append(slider("Punto", "punto", (v) => `${v}`, renders));
-  wrap.append(slider("Satır aralığı", "satirAraligi", (v) => v.toFixed(2), renders));
-  wrap.append(slider("Sütun genişliği", "sutunGenisligi", (v) => `${Math.round(v)}`, renders));
+  wrap.append(slider(t("settings.reading.size"), "punto", (v) => `${v}`, renders));
+  wrap.append(slider(t("settings.reading.leading"), "satirAraligi", (v) => v.toFixed(2), renders));
+  wrap.append(slider(t("settings.reading.column"), "sutunGenisligi", (v) => `${Math.round(v)}`, renders));
 
   const reset = document.createElement("button");
   reset.className = "type-reset";
-  reset.title = "Varsayılana dön";
-  reset.setAttribute("aria-label", "Varsayılana dön");
+  reset.title = t("settings.reading.reset");
+  reset.setAttribute("aria-label", t("settings.reading.reset"));
   // A reset/undo circular arrow — the word "varsayılana dön" was a caption for it.
   reset.innerHTML =
     '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M3 12a9 9 0 1 0 3-6.7L3 8"/><path d="M3 3v5h5"/></svg>';
@@ -569,9 +615,9 @@ export function openSettings(anchor) {
   body.className = "settings-body";
 
   const sekmeler = [
-    ["Yapay zekâ", aiSection],
-    ["Okuma", readingTab],
-    ["Kısayollar", kisayollarTab],
+    [t("settings.tab.ai"), aiSection],
+    [t("settings.tab.reading"), readingTab],
+    [t("settings.tab.shortcuts"), kisayollarTab],
   ];
 
   let etkin = null;

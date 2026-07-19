@@ -13,6 +13,7 @@
 // place and both the keymap and this list agree by construction.
 
 import { jobShortcuts } from "./ai.js";
+import { t } from "./i18n.js";
 
 /**
  * CM's key form ("Alt-a") to the reader's form ("Alt+A").
@@ -31,48 +32,48 @@ export const goster = (kisayol) =>
 export function shortcutGroups() {
   return [
     {
-      baslik: "Belge",
+      baslik: t("sc.group.document"),
       kisayollar: [
-        { tus: "Ctrl+O", ad: "Belge aç" },
-        { tus: "Ctrl+N", ad: "Yeni belge" },
-        { tus: "Ctrl+S", ad: "Kaydet" },
-        { tus: "Ctrl+Shift+S", ad: "Farklı kaydet" },
-        { tus: "Ctrl+W", ad: "Sekmeyi kapat" },
-        { tus: "Ctrl+P", ad: "Yazdır" },
-        { tus: "Ctrl+Shift+P", ad: "PDF olarak kaydet" },
-        { tus: "Ctrl+F", ad: "Belgede ara" },
-        { tus: "Ctrl+H", ad: "Bul ve değiştir" },
-        { tus: "Ctrl+1 … 9", ad: "Sekmeye geç" },
-        { tus: "Alt+←", ad: "Geri (takip edilen linkten dön)" },
+        { tus: "Ctrl+O", ad: t("sc.openDoc") },
+        { tus: "Ctrl+N", ad: t("sc.newDoc") },
+        { tus: "Ctrl+S", ad: t("sc.save") },
+        { tus: "Ctrl+Shift+S", ad: t("sc.saveAs") },
+        { tus: "Ctrl+W", ad: t("sc.closeTab") },
+        { tus: "Ctrl+P", ad: t("sc.print") },
+        { tus: "Ctrl+Shift+P", ad: t("sc.savePdf") },
+        { tus: "Ctrl+F", ad: t("sc.search") },
+        { tus: "Ctrl+H", ad: t("sc.replace") },
+        { tus: "Ctrl+1 … 9", ad: t("sc.switchTab") },
+        { tus: "Alt+←", ad: t("sc.back") },
       ],
     },
     {
-      baslik: "Biçim",
+      baslik: t("sc.group.format"),
       kisayollar: [
-        { tus: "Ctrl+B", ad: "Kalın" },
-        { tus: "Ctrl+I", ad: "İtalik" },
-        { tus: "Ctrl+E", ad: "Kod" },
-        { tus: "Ctrl+Alt+1 / 2 / 3", ad: "Başlık" },
-        { tus: "Ctrl+Alt+0", ad: "Paragraf" },
-        { tus: "Ctrl+Shift+L", ad: "Liste" },
-        { tus: "Ctrl+Shift+Q", ad: "Alıntı" },
+        { tus: "Ctrl+B", ad: t("sc.bold") },
+        { tus: "Ctrl+I", ad: t("sc.italic") },
+        { tus: "Ctrl+E", ad: t("sc.code") },
+        { tus: "Ctrl+Alt+1 / 2 / 3", ad: t("sc.heading") },
+        { tus: "Ctrl+Alt+0", ad: t("sc.paragraph") },
+        { tus: "Ctrl+Shift+L", ad: t("sc.list") },
+        { tus: "Ctrl+Shift+Q", ad: t("sc.quote") },
       ],
     },
     {
-      baslik: "İşaret",
+      baslik: t("sc.group.mark"),
       kisayollar: [
-        { tus: "Ctrl+Enter", ad: "Seçimi işaretle" },
-        { tus: "F8 / Shift+F8", ad: "Sonraki / önceki işarete git" },
-        { tus: "Ctrl+Shift+A", ad: "İşaretleri taşı ekranını aç / kapat" },
+        { tus: "Ctrl+Enter", ad: t("sc.markSel") },
+        { tus: "F8 / Shift+F8", ad: t("sc.travelMark") },
+        { tus: "Ctrl+Shift+A", ad: t("sc.transfer") },
       ],
     },
     {
-      baslik: "Palet ve yapay zekâ",
+      baslik: t("sc.group.palette"),
       kisayollar: [
-        { tus: "Alt+P", ad: "Yüzen paleti gizle / getir" },
+        { tus: "Alt+P", ad: t("sc.togglePalette") },
         ...jobShortcuts().map(({ kisayol, ad }) => ({
           tus: goster(kisayol),
-          ad: `Öneri: ${ad}`,
+          ad: t("sc.suggest", { name: ad }),
         })),
       ],
     },

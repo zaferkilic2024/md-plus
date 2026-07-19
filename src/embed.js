@@ -40,6 +40,7 @@ import { Decoration, EditorView, ViewPlugin, WidgetType } from "@codemirror/view
 import { StateEffect, StateField } from "@codemirror/state";
 import { syntaxTree } from "@codemirror/language";
 import { mapMark } from "./anchor.js";
+import { t } from "./i18n.js";
 
 /**
  * A link is what MARKDOWN says is a link — not what a regex of ours says.
@@ -159,7 +160,7 @@ class EmbedCard {
       .catch(() => {
         // KR-21: nothing is created, nothing is guessed.
         this.dom.classList.add("missing");
-        body.textContent = `bulunamadı: ${target}`;
+        body.textContent = t("status.notFound", { path: target });
         this.place(coords);
       });
 

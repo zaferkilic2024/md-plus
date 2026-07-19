@@ -23,6 +23,7 @@
 // (KR-44: that is the tracking we tore out in KR-33, wearing a new hat).
 
 import { suggest, jobName } from "./ai.js";
+import { t } from "./i18n.js";
 
 const icon = (paths) =>
   `<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round">${paths}</svg>`;
@@ -35,7 +36,7 @@ const COPY = '<rect x="9" y="9" width="11" height="11" rx="2"/><path d="M5 15V5a
 function copyButton(text) {
   const button = document.createElement("button");
   button.className = "icon-action suggestion-copy";
-  button.title = "Kopyala";
+  button.title = t("suggestion.copy");
   button.innerHTML = icon(COPY);
   button.onclick = async () => {
     try {
@@ -116,7 +117,7 @@ export class Suggestion {
     if (sonuc.iptal) return this.close();
 
     if (view.state.doc.toString() !== this.docAtStart) {
-      return this.whisper("Metin değişti — öneri düştü.");
+      return this.whisper(t("suggestion.textChanged"));
     }
     if (sonuc.hata) return this.whisper(sonuc.hata);
     if (sonuc.engel) return this.whisper(sonuc.engel);
@@ -148,7 +149,7 @@ export class Suggestion {
 
     const olcu = document.createElement("span");
     olcu.className = "suggestion-measure";
-    olcu.textContent = `${(sure / 1000).toFixed(0)} sn${tokenSaydir(kullanim)}`;
+    olcu.textContent = `${(sure / 1000).toFixed(0)} ${t("unit.sec")}${tokenSaydir(kullanim)}`;
 
     // No claim warning on the card any more (Zafer, 16 Tem 2026): the AI warnings
     // are being pulled out app-wide, to be replaced by one notice in a corner of
@@ -169,7 +170,7 @@ export class Suggestion {
     // colour rather than in a sentence.
     const kapat = document.createElement("button");
     kapat.className = "icon-action suggestion-drop";
-    kapat.title = "Kapat — rapor belgeye giremez";
+    kapat.title = t("suggestion.reportClose");
     kapat.innerHTML = icon(CROSS);
     kapat.onclick = () => this.close();
 
@@ -195,7 +196,7 @@ export class Suggestion {
     const basladi = Date.now();
     const yaz = () => {
       const sn = Math.round((Date.now() - basladi) / 1000);
-      said.textContent = `${jobName(this.job)} yazılıyor… ${sn} sn`;
+      said.textContent = t("suggestion.writing", { job: jobName(this.job), sn });
     };
     yaz();
     this.timer = setInterval(yaz, 1000);
@@ -205,7 +206,7 @@ export class Suggestion {
     // nothing enters the document.
     const vazgec = document.createElement("button");
     vazgec.className = "icon-action suggestion-cancel";
-    vazgec.title = "Vazgeç — isteği durdur";
+    vazgec.title = t("suggestion.cancel");
     vazgec.innerHTML = icon(CROSS);
     vazgec.onclick = () => {
       this.controller?.abort();
@@ -245,9 +246,9 @@ export class Suggestion {
     const kaynakKelime = (this.source.trim().match(/\S+/g) ?? []).length;
     olcu.textContent =
       (this.job === "continue"
-        ? `${kelime} kelime`
-        : `${kaynakKelime} → ${kelime} kelime`) +
-      ` · ${(sure / 1000).toFixed(0)} sn` +
+        ? `${kelime} ${t("unit.words")}`
+        : `${kaynakKelime} → ${kelime} ${t("unit.words")}`) +
+      ` · ${(sure / 1000).toFixed(0)} ${t("unit.sec")}` +
       tokenSaydir(kullanim);
     kontrol.append(baslik, olcu);
 
@@ -280,8 +281,8 @@ export class Suggestion {
     al.className = "icon-action suggestion-take";
     al.title =
       this.job === "continue"
-        ? "Kabul et — metin belgeye eklenir"
-        : "Kabul et — metin belgeye girer";
+        ? t("suggestion.acceptContinue")
+        : t("suggestion.accept");
     al.innerHTML = icon(TICK);
     al.onclick = () => this.accept();
 
@@ -290,7 +291,7 @@ export class Suggestion {
     // describing one behaviour; the icon admitted it.
     const birak = document.createElement("button");
     birak.className = "icon-action suggestion-drop";
-    birak.title = "Reddet — kart kapanır, belge değişmez";
+    birak.title = t("suggestion.reject");
     birak.innerHTML = icon(CROSS);
     birak.onclick = () => this.close();
 
@@ -318,7 +319,7 @@ export class Suggestion {
 
     const kapat = document.createElement("button");
     kapat.className = "icon-action suggestion-drop";
-    kapat.title = "Kapat";
+    kapat.title = t("suggestion.close");
     kapat.innerHTML = icon(CROSS);
     kapat.onclick = () => this.close();
 
