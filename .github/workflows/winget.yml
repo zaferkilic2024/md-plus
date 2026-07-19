@@ -1,0 +1,31 @@
+name: Winget
+
+# Bir GitHub Release YAYINLANINCA, Release'teki MSI'nin SHA256'sını hesaplayıp
+# microsoft/winget-pkgs deposuna otomatik bir güncelleme PR'ı açar.
+#
+# İki koşul vardır:
+#   1) WINGET_TOKEN secret'ı tanımlı olmalı. Tanımlı değilse aşağıdaki adım
+#      atlanır ve bu dosya sessizce uyur — ilk sürümü hazırlarken kırmızı hata
+#      görmezsin.
+#   2) ZaferKilic.MDPlus paketi winget'te ZATEN var olmalı. İlk sürüm elle
+#      (wingetcreate) eklenir; bu otomasyon İKİNCİ sürümden itibaren devreye
+#      girer.
+on:
+  release:
+    types: [released]
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    steps:
+      - name: WINGET_TOKEN tanımlı mı?
+        id: gate
+        run: echo "ok=${{ secrets.WINGET_TOKEN != '' }}" >> "$GITHUB_OUTPUT"
+
+      - name: winget'e güncelleme PR'ı gönder
+        if: steps.gate.outputs.ok == 'true'
+        uses: vedantmgoyal9/winget-releaser@v2
+        with:
+          identifier: ZaferKilic.MDPlus
+          installers-regex: '\.msi$'
+          token: ${{ secrets.WINGET_TOKEN }}

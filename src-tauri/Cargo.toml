@@ -1,8 +1,10 @@
 [package]
 name = "md-plus"
 version = "0.2.0"
-description = "MD Plus — çevrimdışı Markdown okuyucu ve yazıcı"
+description = "MD Plus — çok sekmeli Markdown okuyucu, yazıcı ve belgeler arası aktarma"
 edition = "2021"
+license = "MIT"
+repository = "https://github.com/zaferkilic2024/md-plus"
 
 [lib]
 name = "md_plus_lib"

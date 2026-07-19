@@ -1,0 +1,44 @@
+name: Release
+
+# Bir sürüm etiketi (v*) push edilince tetiklenir: Tauri uygulamasını Windows'ta
+# TEMİZ bir checkout'tan derler (CLI-yerel modüller repoda olmadığı için build
+# kendiliğinden temiz kalır), MSI kurulumunu üretir ve otomatik bir GitHub
+# Release'e yükler. winget bu Release'teki MSI'yi indirir.
+on:
+  push:
+    tags:
+      - "v*"
+
+permissions:
+  contents: write # Release oluşturmak/varlık yüklemek için
+
+jobs:
+  release:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+
+      - name: Ön yüz bağımlılıkları
+        run: npm ci
+
+      - uses: dtolnay/rust-toolchain@stable
+
+      - uses: swatinem/rust-cache@v2
+        with:
+          workspaces: src-tauri
+
+      - name: Derle ve yayınla
+        uses: tauri-apps/tauri-action@v0
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          tagName: ${{ github.ref_name }}
+          releaseName: "MD Plus ${{ github.ref_name }}"
+          releaseBody: "MSI kurulumunu aşağıdaki Assets bölümünden indirin. winget: `winget install ZaferKilic.MDPlus`"
+          releaseDraft: false
+          prerelease: false
