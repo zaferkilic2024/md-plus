@@ -1,0 +1,71 @@
+name: Release
+
+# Bir sürüm etiketi (v*) push edilince tetiklenir:
+#   1) release işi — Tauri'yi Windows'ta TEMİZ bir checkout'tan derler (yerel-
+#      yalnızca modüller repoda olmadığı için build kendiliğinden temiz kalır), MSI'yi
+#      üretir ve otomatik bir GitHub Release'e yükler.
+#   2) winget işi — Release hazır olunca, MSI'nin SHA256'sını hesaplayıp
+#      microsoft/winget-pkgs'e otomatik güncelleme PR'ı açar.
+#
+# winget işi neden ayrı bir "on: release" dosyasında DEĞİL: tauri-action Release'i
+# yerleşik GITHUB_TOKEN ile oluşturur ve GitHub, GITHUB_TOKEN'ın ürettiği
+# olayların başka workflow tetiklemesine izin vermez (özyineleme koruması). Bu
+# yüzden winget aynı workflow içinde, derlemeye bağlı bir iş olarak çalışır.
+on:
+  push:
+    tags:
+      - "v*"
+
+permissions:
+  contents: write # Release oluşturmak/varlık yüklemek için
+
+jobs:
+  release:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+
+      - name: Ön yüz bağımlılıkları
+        run: npm ci
+
+      - uses: dtolnay/rust-toolchain@stable
+
+      - uses: swatinem/rust-cache@v2
+        with:
+          workspaces: src-tauri
+
+      - name: Derle ve yayınla
+        uses: tauri-apps/tauri-action@v0
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          tagName: ${{ github.ref_name }}
+          releaseName: "MD Plus ${{ github.ref_name }}"
+          releaseBody: "MSI kurulumunu aşağıdaki Assets bölümünden indirin. winget: `winget install ZaferKilic.MDPlus`"
+          releaseDraft: false
+          prerelease: false
+
+  # İlk sürüm winget'e ELLE (wingetcreate) eklenir; bu iş İKİNCİ sürümden itibaren
+  # devreye girer. İki koşul: WINGET_TOKEN secret'ı tanımlı olmalı (yoksa atlanır,
+  # kırmızı hata olmaz) ve ZaferKilic.MDPlus paketi winget'te zaten var olmalı.
+  winget:
+    needs: release
+    runs-on: ubuntu-latest
+    steps:
+      - name: WINGET_TOKEN tanımlı mı?
+        id: gate
+        run: echo "ok=${{ secrets.WINGET_TOKEN != '' }}" >> "$GITHUB_OUTPUT"
+
+      - name: winget'e güncelleme PR'ı gönder
+        if: steps.gate.outputs.ok == 'true'
+        uses: vedantmgoyal9/winget-releaser@v2
+        with:
+          identifier: ZaferKilic.MDPlus
+          release-tag: ${{ github.ref_name }}
+          installers-regex: '\.msi$'
+          token: ${{ secrets.WINGET_TOKEN }}

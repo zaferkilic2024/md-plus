@@ -1,0 +1,67 @@
+<!doctype html>
+<html lang="tr">
+  <head>
+    <meta charset="UTF-8" />
+    <title>MD Plus</title>
+    <!-- Gömülü favicon: dış istek yok, dolayısıyla /favicon.ico için 404 da yok
+         (DevTools konsolunu kirletiyordu). İkon src-tauri/icons/32x32.png. -->
+    <link rel="icon" type="image/png" href="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAACAAAAAgCAYAAABzenr0AAAFJ0lEQVR42sVWXWwUVRT+Zu6d3XZb3LaspbRrrQXEKIk2FaJCE60mJqAhaaqpEk1ITIwiRAwagy+K8oAp8UEeeMGHRomCiUiIITwQDQ8KRNMIRSzallTp3/Z3u/8zcz33zLSlBRLRtnub6d47c+/5+c53zrkSNKo27W2GiVYoFQUPAwszlP9rXHOBd/tOvHfYqNq0pxnCOsqfXRuLMQxT0j8DTi77klSu22qYLpRj2+S4nDZywbSTo3bGISOECdUqFVRU2VksivKZKAjl5BTpXCbhul7IFRZ7GKRTSaVc5HEYBLs7A42x+BbMRkDlwQBGYB4UG8Z0WG9Lnk7DeYHecRQckiVME6Zp3CYC/5MDSikUFQQRKgggmc7QkyVE/p0wU3OAH/i/HBLvudX6+keQt+PxJN5oeQKXvtmDV5oaMDaRgNAFZ5YM5c3d2ecZAUP/8QEwfLbtsAcmwanfO47LXkopeM6W+zA7jk0iHBQXBngdClq8Zkhdd5rdjkMyTeEho+YgkMvlMJlIIU3wxUYmWKlLQuKTSYyMxckgG5Jc0p4pNlghmUpjgr4XWAI5OjuZTPsGOb6nM7+GYaKoLAJTiJn3UwjECb5nHq9D664X8PWpc7BJwKvPN2J0Iomd+z7H3ZURvP96EzLZHA4eOY1P2k4yVe6tqcDHb7Xg0YdW4ueOHgyToeyR/uh6IWNHSF5h6VJseHkbzh75DCO93RCBIPUehzkns+R9ZXkYNVUR7Nq6EecvdrGntdFyfPvpTnT9NYg/ewewdk0tPtjWhJNn2tF5tR9H92/HPdE7ceFKLywKzebG+unQeN4p5FIpZFNJBApDjEI2lUAqPoZgqJiNgEthNYh8mUyWD18kYeue2411D67C2S8/5Hdb3j6An9o70XFiP+5fUYVISTEqIqtZ+eXua2jc+hFiA6M4dvAdbH7yYeYPxzybQU39YyitrCajBId09fqnULu2AfGhfnSd+wGmtIgDmjDKY0U3easPay7YRDbN7oHhUQQCArHRCd5jE+mqK8p4/ktHFxIJ4kFREO2Xe/yU1PA7pDCHwiVhhJdVcfw18UIUihJah8IlFBqb93E3nCrHgjo0fJLxCYoRpxPtMafymuaptEe46uURQi8Dlwj4wMroVFHQdwvKmCL8dvo4fv3uK9xBShtf243244cx1NPJIRFSMg+kvgVNFS5LG6DJodlJjA1alpe39E7HWY8iSrcz5y/xfEP9fWjbt53J1vz0I/wuaEnvjDZaSEiKtQwEYAULKe4BnpvS2+ORlg4n/BQaHB4nrxWn3d8Dw+jtjzGLNSIDsVFy3uUM6Py9B2/uPcRpuOXZBqxZdRfajn3PMkbG415HIHi1czrvU+Mj+PGLA5gc6uPaonwnGe1w3Yu2lKYIBixOwUzWZqsKdEEhgZlMjhmtv+sQ6XR0ib1xyv3l5aUoCxfjytU+7gHhJSGkaX+OC9lMedfnNSmFFaBiZM4q+0ZJXYtNa8He6ernx9rxvdUWc+i5lCqvOvp8yZKxWpk2Fn7F1Odv6AMGOA3VTTrvdDfUNR2+EiakL2SKoKZfZby+QdlgUx8ghkqKs5f3N8q4/p6he80tuqHj9XF18xv8rPXcPXNav1L/+UZk5O1S6N+I8miAx4G8GaD8G1EeDNCXR0oY4oDqIwSiXsUxxOIoJ+YbQlAfiglr6YpBytsmzjTl6hzyUmLhHsVFQdcL190hcsN/XJBltV2UDevpa7G/y783zfvDssnPGIGwI9F56tA/mx1AIY0TxWkAAAAASUVORK5CYII=" />
+    <link rel="stylesheet" href="/src/style.css" />
+  </head>
+  <!-- spellcheck is inherited, so it is answered once, here, rather than on each
+       of the ten boxes scattered across five files. The WebView's spellchecker
+       has no Turkish dictionary: it underlined every Turkish word in the search
+       box, in comments, in the settings fields — a red line under correct
+       writing, in an app where red means something is being deleted. Spelling is
+       a job we already have, and it is the writer's to ask for (Alt+Y). -->
+  <body spellcheck="false">
+    <div id="shell">
+      <div id="tabs" class="tabs"></div>
+      <div id="body" class="body"></div>
+      <div id="status" class="status"></div>
+    </div>
+    <script>
+      // Dev aid: no console is reachable here, so errors are painted on top.
+      function showError(text) {
+        const box = document.createElement("pre");
+        box.style.cssText =
+          "position:fixed;top:0;left:0;right:0;z-index:999;margin:0;padding:10px;" +
+          "background:#7a1f1f;color:#fff;font:12px/1.4 monospace;white-space:pre-wrap;max-height:45vh;overflow:auto";
+        box.textContent = text;
+        document.body.append(box);
+      }
+      // CodeMirror reports a crashing plugin through the window.onerror
+      // *property* (not an "error" listener) and then disables the plugin, so
+      // the page keeps running and nothing else ever sees it.
+      window.onerror = (message, source, line, column, error) => {
+        showError("onerror: " + message + "\n" + ((error && error.stack) || ""));
+      };
+      const originalError = console.error;
+      console.error = (...args) => {
+        showError(
+          "console.error: " +
+            args
+              .map((a) => (a && a.stack) || (a && a.message) || String(a))
+              .join("\n"),
+        );
+        originalError.apply(console, args);
+      };
+      window.addEventListener("error", (event) =>
+        showError(
+          "HATA: " +
+            (event.message || "") +
+            "\n" +
+            ((event.error && event.error.stack) || ""),
+        ),
+      );
+      window.addEventListener("unhandledrejection", (event) =>
+        showError(
+          "REDDEDİLDİ: " +
+            ((event.reason && (event.reason.stack || event.reason.message)) ||
+              event.reason),
+        ),
+      );
+    </script>
+    <script type="module" src="/src/main.js"></script>
+  </body>
+</html>

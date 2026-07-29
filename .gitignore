@@ -1,0 +1,61 @@
+# Bağımlılıklar
+node_modules/
+
+# Derleme çıktıları
+dist/
+# pdf.js'in standart yazı tipleri — build sırasında node_modules'tan kopyalanır
+public/standard_fonts/
+src-tauri/target/
+
+# Geçici çalışma dosyaları (her şey .tmp/ altına)
+.tmp/
+
+# Yan kayıt: işaretler, yorumlar, yedekler — belgenin yanında yaşar, depoya girmez.
+.mdplus/
+
+# Uygulama ayarları (kullanıcıya ait, ürüne değil)
+ayarlar.json
+
+# Yerel-yalnızca modüller ve yapı bayrağı (kişisel) — dağıtılmaz.
+# Diskte kalır, repoya girmez; temiz checkout bunlarsız derlenir.
+src/*.local.js
+src-tauri/capabilities/*.local.json
+.env.local
+# Tauri'nin ürettiği yetki şeması — build sırasında yeniden üretilir.
+src-tauri/gen/schemas/capabilities.json
+
+# Kişisel çalışma günlüğü ve araçlar — dağıtılmaz. Paylaşım: README.md.
+CLAUDE.md
+ISTERLER.md
+YAPILACAKLAR.md
+BULGULAR.md
+# Süreç dokümanlarının tarihli arşiv kopyaları — kapanmış tarihçe, dağıtılmaz.
+arsiv/
+.claude/
+
+# Süreç dokümanları ve deneme ikonları — diskte kalır, repoya girmez.
+# Kodu indirenle yazım süreci/tasarım denemeleri paylaşılmaz. `/icons/` KÖK
+# klasördür; `src-tauri/icons/` (build'in kullandığı) etkilenmez.
+tasarim/
+test/
+/icons/
+
+# Kişisel içerik belgesi — ürün kodu değil, dağıtılmaz
+oyun_teorisi_determinizm.md
+
+# Kişisel yapılacaklar listesi (Zafer'e özel) — dağıtılmaz
+ZAFER-YAPILACAKLAR.md
+
+# Kişisel çalışma günlüğü (winget/i18n süreci) — dağıtılmaz
+winget-yayin-gunlugu.md
+
+# Kişisel winget PR izleyici script'i — dağıtılmaz
+winget-pr-izle.ps1
+
+# Kişisel yerel araçlar ve notları — dağıtılmaz
+yerel-*
+
+# Kişisel ikon türetme script'leri (yerel yollar) — dağıtılmaz
+convert_icon_custom.py
+convert_icons.py
+generate_windows_icon.py

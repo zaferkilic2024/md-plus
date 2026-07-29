@@ -1,0 +1,41 @@
+[package]
+name = "md-plus"
+version = "0.3.0"
+description = "MD Plus — çok sekmeli Markdown okuyucu, yazıcı ve belgeler arası aktarma"
+edition = "2021"
+license = "MIT"
+repository = "https://github.com/zaferkilic2024/md-plus"
+
+[lib]
+name = "md_plus_lib"
+crate-type = ["staticlib", "cdylib", "rlib"]
+
+[build-dependencies]
+tauri-build = { version = "2", features = [] }
+
+[dependencies]
+tauri = { version = "2", features = ["protocol-asset"] }
+tauri-plugin-fs = "2"
+tauri-plugin-dialog = "2"
+# The only reason the app can reach a network at all. Its scope is pinned in
+# capabilities/default.json to exactly three hosts: the local Ollama, Gemini,
+# and Anthropic.
+# `unsafe-headers`: the fetch spec forbids a page from setting its own Origin,
+# and the plugin obeys — silently dropping the header. But this is not a page:
+# Ollama refuses `http://tauri.localhost` (403) and accepts `tauri://localhost`,
+# so saying which one we are is the whole fix for B-26. The flag only lets us
+# send headers a browser would forbid; the host scope above is unchanged.
+tauri-plugin-http = { version = "2", features = ["unsafe-headers"] }
+# Shell access is scoped in capabilities; the distributed app grants it no
+# permission to execute anything.
+tauri-plugin-shell = "2"
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+
+# PDF is produced by the WebView itself, so the page on paper is the page the
+# writer saw. Reaching its PrintToPdf needs the WebView2 bindings directly —
+# Tauri does not surface it. Same versions Tauri already links, so nothing is
+# duplicated.
+[target.'cfg(windows)'.dependencies]
+webview2-com = "0.38"
+windows = { version = "0.61", features = ["Win32_Foundation"] }
