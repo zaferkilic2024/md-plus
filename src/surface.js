@@ -162,56 +162,46 @@ const glyph = (paths) =>
   `<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">${paths}</svg>`;
 
 /**
- * The badge in the margin: what this mark carries (UC-14-K2 — one click, no
- * side panel).
+ * A badge in a margin: one thing a mark carries (UC-14-K2 — one click, no side
+ * panel).
  *
- * TWO things can hang here now, and they are different sentences:
+ * TWO of them can hang off one mark, and they say different things:
  *
  *   the bubble — this mark has a comment (GLYPH.note, the same drawing the
- *                palette's "Yorumla" wears).
+ *                palette's "Yorumla" wears). It hangs on the LEFT.
  *   the arrow  — this passage was MOVED somewhere (GLYPH.send, the drawing
- *                Aktarma sends with). Added 3 Ağu: the record has always known
- *                where a piece went, and the only place that showed it was a
- *                menu. "İşaretler listesi doğru bir yer değil" (Zafer) — a
- *                trace of the text belongs beside the text.
+ *                Aktarma sends with). It hangs on the RIGHT.
  *
- * A mark can wear both, one, or neither. They sit in one widget rather than two
- * because the margin has one column and two widgets would each want it: one
- * badge, one anchor, one place for the strip to open against.
+ * They were briefly side by side in one badge on the right, and that was wrong:
+ * two glyphs touching read as one control with two halves, and neither said
+ * which was which (Zafer, 3 Ağu: "karışıyor"). Opposite margins settle it
+ * without a word — the side IS the label. Nothing else in the app hangs in the
+ * left margin, so the bubble owns it outright.
  */
 class BadgeWidget extends WidgetType {
-  constructor(id, note, moved) {
+  constructor(id, kind) {
     super();
     this.id = id;
-    this.note = note;
-    this.moved = moved;
+    this.kind = kind; // "note" | "sent"
   }
-  // The id and WHAT IS DRAWN — not the comment's text (the strip shows that,
+  // The id and WHICH badge — not the comment's text (the strip shows that,
   // B-19), so editing a comment must not rebuild the widget: every needless
-  // rebuild is DOM churn next to a focused comment box (B-24). But gaining a
-  // comment or a destination changes the drawing, and that has to redraw.
+  // rebuild is DOM churn next to a focused comment box (B-24).
   eq(other) {
-    return other.id === this.id && other.note === this.note && other.moved === this.moved;
+    return other.id === this.id && other.kind === this.kind;
   }
   toDOM() {
     const badge = document.createElement("span");
-    badge.className = "cm-rozet";
+    // Both keep `cm-rozet`: every measurement, hover and hit-test in the app
+    // already looks for that class, and the two are the same kind of object —
+    // a control in a margin, level with the mark's first line.
+    badge.className = this.kind === "sent" ? "cm-rozet cm-rozet-sent" : "cm-rozet";
     badge.dataset.mark = this.id;
 
     // Drawn, not filled — a solid 16px ochre tile with a white glyph squeezed
     // inside came out as a muffled blob at this size, and it was the heaviest
     // thing in the margin.
-    //
-    // The arrow leads when both are there: it is about where the TEXT went,
-    // and the comment is a note about the text. Its own element, its own class,
-    // so a click can tell which of the two was pressed.
-    if (this.moved) {
-      badge.insertAdjacentHTML(
-        "beforeend",
-        `<i class="cm-rozet-sent" data-sent="1">${glyph(GLYPH.send)}</i>`,
-      );
-    }
-    if (this.note) badge.insertAdjacentHTML("beforeend", glyph(GLYPH.note));
+    badge.innerHTML = glyph(this.kind === "sent" ? GLYPH.send : GLYPH.note);
 
     // The comment itself is NOT drawn here. Hovering opens the strip as a
     // preview (marks.js/onHover) — the same box a click opens, in the same spot.
@@ -260,12 +250,18 @@ function paint(marks) {
     // The badge hangs in the margin beside the mark's FIRST line, not inline at
     // its end: inline, the badges landed wherever the prose happened to stop, so
     // a column of comments read as scattered debris. Out here they line up.
-    if (mark.yorumlu || mark.tasindi) {
+    // Two widgets at one position, opposite margins. CodeMirror keeps them in
+    // the order given, which is why the comment is pushed first: both are
+    // absolutely positioned, so DOM order costs nothing visually, but it does
+    // decide which one a measuring pass meets first.
+    if (mark.yorumlu) {
       decorations.push(
-        Decoration.widget({
-          widget: new BadgeWidget(mark.id, Boolean(mark.yorumlu), Boolean(mark.tasindi)),
-          side: -1,
-        }).range(mark.from),
+        Decoration.widget({ widget: new BadgeWidget(mark.id, "note"), side: -1 }).range(mark.from),
+      );
+    }
+    if (mark.tasindi) {
+      decorations.push(
+        Decoration.widget({ widget: new BadgeWidget(mark.id, "sent"), side: -1 }).range(mark.from),
       );
     }
   }

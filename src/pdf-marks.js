@@ -24,7 +24,7 @@ import { palettesSuppressed } from "./palette.js";
 import { makeAnchor, readSidecar, resolveAnchor, writeSidecar } from "./sidecar.js";
 import { t } from "./i18n.js";
 import { movedTo } from "./citation.js";
-import { popover } from "./popover.js";
+import { frozenAnchor, popover } from "./popover.js";
 import { fileNameOf } from "./paths.js";
 
 /** A click, as a box the strip can be hung on. */
@@ -69,7 +69,9 @@ export class PdfMarkStore {
     // it — that is what `hovered` is for — and leaving closes it unless a click
     // pinned it or a comment is being written.
     this.onHover = (event) => {
-      const badge = event.target.closest?.(".pdf-badge");
+      // The comment's badge only — the arrow in the other margin is about where
+      // the passage went, and hovering it must not open a comment.
+      const badge = event.target.closest?.(".pdf-badge:not(.pdf-badge-sent)");
       if (badge) {
         clearTimeout(this.leaveTimer);
         const spot = this.byId(badge.dataset.mark);
@@ -526,19 +528,24 @@ export class PdfMarkStore {
       // The arrow half of the badge asks a different question from the bubble:
       // "where did this passage go", not "what did I write about it". Same door,
       // same behaviour, same order as a document's (marks.js/onClick).
-      if (!live && badge && event.target.closest?.(".pdf-badge-sent")) {
+      if (!live && badge?.classList.contains("pdf-badge-sent")) {
         const spot = this.byId(badge.dataset.mark);
         const hedefler = movedTo(spot?.record);
         if (!hedefler.length) return;
 
+        // Measured before anything repaints: the badge is redrawn with its page
+        // and would answer 0,0 afterwards, putting the menu in the window's
+        // corner (marks.js says the same thing at more length).
+        const at = badge.getBoundingClientRect();
         this.hidePalette();
         this.strip.hide();
+
         if (hedefler.length === 1) {
           this.onFollowTarget?.(hedefler.at(-1).hedefBelge);
           return;
         }
         popover(
-          badge,
+          frozenAnchor(at),
           [...hedefler].reverse().map((each) => ({
             label: fileNameOf(each.hedefBelge),
             run: () => this.onFollowTarget?.(each.hedefBelge),

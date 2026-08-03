@@ -31,7 +31,7 @@ import {
   titleOf,
   writeDocument,
 } from "./storage.js";
-import { pageOfFragment, slugify, splitTarget } from "./citation.js";
+import { movedTo, pageOfFragment, slugify, splitTarget } from "./citation.js";
 import { openContextMenu } from "./context-menu.js";
 import { passageMarkdown } from "./pdf-text.js";
 import { createPdfSurface, isPdfPath } from "./pdf.js";
@@ -1400,8 +1400,44 @@ async function followLink(tab, target, at = null) {
     });
     if (backStack.length > 50) backStack.shift();
   }
+  const cameFrom = tab.path;
   await openDocument(path);
-  landOn(fragment);
+
+  // A citation's link can only name a HEADING (`belge.md#bölüm`) — the thing
+  // that actually addresses the passage is the mark's id, and that can never be
+  // written into the .md (the portability law). So arriving at a 4.000-word
+  // source used to mean arriving at a section, which in a long document reads
+  // as not arriving (Zafer, 3 Ağu: "işaret odaklanamadı").
+  //
+  // But the app knows something the link cannot say: the source's own record
+  // remembers which documents each passage was moved into. Coming from one of
+  // them, the mark is findable — no new syntax, nothing added to the file, just
+  // the sidecar answering a question it could always answer.
+  //
+  // Only when it is unambiguous. Several passages may have gone to the same
+  // document, and picking one of them at random would be worse than the heading:
+  // wrong with confidence. Then the heading stands.
+  if (!landOnMovedMark(cameFrom)) landOn(fragment);
+}
+
+/**
+ * The passage this document sent to `target`, if exactly one did.
+ *
+ * @returns {boolean} whether it travelled there
+ */
+function landOnMovedMark(target) {
+  const store = activeTab()?.marks;
+  if (!target || !store?.records) return false;
+
+  const hits = store.records.filter((record) =>
+    movedTo(record).some((each) => samePath(each.hedefBelge, target)),
+  );
+  if (hits.length !== 1) return false;
+
+  // The same door the marks list and F8 use: it scrolls there AND shades the
+  // mark, which is what says "this is the one you asked about".
+  store.travelTo(hits[0].id);
+  return true;
 }
 
 /**

@@ -1186,19 +1186,20 @@ export async function createPdfSurface({ parent, data, onPage, onPaint, onZoom }
           // column instead of trailing the prose wherever it happens to end.
           // Only a commented mark has one — colour already says "marked", the
           // badge says "there is something written about this".
-          if ((mark.note || mark.moved) && first) {
-            const badge = document.createElement("button");
-            badge.className = "pdf-badge";
-            badge.dataset.mark = mark.id;
-            badge.title = mark.note ? t("palette.comment") : t("mark.movedTo");
-            // Arrow first, bubble second — the same order and the same two
-            // drawings a document's badge uses (surface.js/BadgeWidget): where
-            // the TEXT went leads, what was said about it follows.
-            badge.innerHTML =
-              (mark.moved ? `<i class="pdf-badge-sent" data-sent="1">${icon(GLYPH.send, 13)}</i>` : "") +
-              (mark.note ? icon(GLYPH.note, 13) : "");
-            badge.style.top = `${first.top - page.top}px`;
-            slot.marks.append(badge);
+          // Two badges, opposite margins — a document's rule (surface.js):
+          // the comment on the left, where the passage WENT on the right. Side
+          // by side they touched and read as one control with two halves.
+          if (first) {
+            for (const kind of ["note", "sent"]) {
+              if (!mark[kind === "note" ? "note" : "moved"]) continue;
+              const badge = document.createElement("button");
+              badge.className = kind === "sent" ? "pdf-badge pdf-badge-sent" : "pdf-badge";
+              badge.dataset.mark = mark.id;
+              badge.title = kind === "sent" ? t("mark.movedTo") : t("palette.comment");
+              badge.innerHTML = icon(kind === "sent" ? GLYPH.send : GLYPH.note, 13);
+              badge.style.top = `${first.top - page.top}px`;
+              slot.marks.append(badge);
+            }
           }
         }
       },
@@ -1226,7 +1227,12 @@ export async function createPdfSurface({ parent, data, onPage, onPaint, onZoom }
       /** Where a mark's badge sits, so its box can open against it (B-21). */
       badgeRect(id) {
         for (const slot of slots) {
-          const badge = slot.marks?.querySelector(`.pdf-badge[data-mark="${id}"]`);
+          // The COMMENT's badge: a mark can carry two now, and the note box
+          // aligns to the one it is about. Matching either would open the box
+          // against whichever the DOM happened to hold first.
+          const badge = slot.marks?.querySelector(
+            `.pdf-badge:not(.pdf-badge-sent)[data-mark="${id}"]`,
+          );
           if (badge) return badge.getBoundingClientRect();
         }
         return null;

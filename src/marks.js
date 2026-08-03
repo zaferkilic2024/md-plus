@@ -17,7 +17,7 @@ import { hidePalettes } from "./palette.js";
 import { Strip } from "./strip.js";
 import { t } from "./i18n.js";
 import { movedTo } from "./citation.js";
-import { popover } from "./popover.js";
+import { frozenAnchor, popover } from "./popover.js";
 import { fileNameOf } from "./paths.js";
 
 const newId = () => `i_${Math.random().toString(36).slice(2, 8)}`;
@@ -89,7 +89,10 @@ export class MarkStore {
     // "yorum yalnız okunur"), and this preview is where it is read; the strip's
     // Aktarma face itself carries no comment. The verbs stay face-bound: a
     // CLICK opens sekme's pen/trash or Aktarma's "Taşı".
-    const badge = event.target.closest?.(".cm-rozet");
+    // The comment's badge only. The arrow in the other margin is about where the
+    // passage went, and hovering it must not open a comment that is nothing to
+    // do with it.
+    const badge = event.target.closest?.(".cm-rozet:not(.cm-rozet-sent)");
     if (!badge) return;
     clearTimeout(this.hoverTimer);
 
@@ -520,19 +523,27 @@ export class MarkStore {
     // there — one destination straight away, several through a menu, because a
     // piece can be moved as many times as the writer likes and the record now
     // keeps all of them.
-    if (badge && event.target.closest?.(".cm-rozet-sent")) {
+    if (badge?.classList.contains("cm-rozet-sent")) {
       const record = this.records.find((each) => each.id === badge.dataset.mark);
       const hedefler = movedTo(record);
       if (!hedefler.length) return;
 
+      // MEASURED FIRST, and this is not tidiness. `strip.hide()` repaints, a
+      // repaint rebuilds the widgets, and the badge this menu hangs on is one
+      // of them — asked for its rect afterwards it answers 0,0 and the menu
+      // opens in the window's top-left corner (Zafer, 3 Ağu). Same shape as the
+      // recorded trap "do not carry a computed position across an await": the
+      // thing you measured has to still be the thing that is there.
+      const spot = badge.getBoundingClientRect();
       this.strip.hide();
+
       if (hedefler.length === 1) {
         this.onFollowTarget?.(hedefler.at(-1).hedefBelge);
         return;
       }
       // Newest first: the last place a piece went is the one being worked in.
       popover(
-        badge,
+        frozenAnchor(spot),
         [...hedefler].reverse().map((each) => ({
           label: fileNameOf(each.hedefBelge),
           run: () => this.onFollowTarget?.(each.hedefBelge),

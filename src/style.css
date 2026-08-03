@@ -2256,41 +2256,27 @@ body.dragging .body {
 .host .cm-rozet,
 .panel .cm-rozet {
   position: absolute;
-  right: -34px;
+  /* The comment's own margin, and nothing else in the app lives here. The side
+     is the label: with both badges on the right they touched and read as one
+     control with two halves (Zafer, 3 Ağu: "karışıyor"). */
+  left: -34px;
   top: 0.35em;
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  gap: 1px;
-  /* `auto`, not 18: the badge can carry a second glyph now (the arrow saying
-     this passage was moved), and a fixed width would clip it — the trap of a
-     fixed height swallowing a second line, one axis over. */
-  min-width: 18px;
+  width: 18px;
   height: 18px;
   border-radius: var(--r1);
   background: transparent;
   color: var(--mark-edge);
   cursor: pointer;
 }
-/* Two glyphs are wider than the gutter the single one was sized for, so the
-   badge steps further out rather than leaning back over the prose. The reading
-   column is centred and the space to its right is the widest thing on screen. */
-.host .cm-rozet:has(.cm-rozet-sent):has(svg + svg),
-.panel .cm-rozet:has(.cm-rozet-sent):has(svg + svg) {
-  right: -52px;
-}
-.host .cm-rozet svg,
-.panel .cm-rozet svg {
-  flex: none;
-  width: 15px;
-  height: 15px;
-}
-/* The arrow's own half — pressing it is a different question from pressing the
-   bubble ("where did this go" against "what did I say about it"), so it has to
-   be hit-testable on its own. */
-.cm-rozet-sent {
-  display: inline-flex;
-  line-height: 0;
+/* Where the passage WENT — the right margin, opposite the comment. Reading a
+   marked line then goes: what I said about it, the text, where it went. */
+.host .cm-rozet-sent,
+.panel .cm-rozet-sent {
+  left: auto;
+  right: -34px;
 }
 /* It answers when reached for, in the mark's ground — the same yellow the text
    behind it is wearing. */
@@ -3701,14 +3687,15 @@ body.dragging .body {
      with the badge — the note box, the strip, the hover preview — reads its
      measured rect (pdf.js/badgeRect), so they follow this number rather than
      repeating it. */
-  right: 16px;
+  /* The comment's margin. A page has no left gutter of its own — the paper runs
+     edge to edge — so the two badges sit inside the paper, at its two edges.
+     Opposite sides are what tells them apart (a document's rule, style.css
+     above): together they read as one control with two halves. */
+  left: 16px;
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  gap: 1px;
-  /* `auto`, as in a document: the badge may carry a second glyph — the arrow
-     saying this passage was moved somewhere. A fixed width would clip it. */
-  min-width: 18px;
+  width: 18px;
   height: 18px;
   padding: 0;
   border: 0;
@@ -3718,14 +3705,12 @@ body.dragging .body {
   cursor: pointer;
   pointer-events: auto;
 }
-.pdf-badge svg {
-  flex: none;
-}
-/* Its own element so a press can tell the two halves apart: the arrow asks
-   "where did this go", the bubble "what did I write about it". */
+/* Where the passage went — the right edge, opposite the comment. This is the
+   16px the note box and the strip measure themselves against (pdf.js/badgeRect),
+   so it stays the number that was always there. */
 .pdf-badge-sent {
-  display: inline-flex;
-  line-height: 0;
+  left: auto;
+  right: 16px;
 }
 .pdf-badge:hover {
   background: var(--mark);

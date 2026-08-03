@@ -21,6 +21,22 @@ export const icon = (paths, size = 15) =>
 const openMenus = new Map();
 
 /**
+ * A rectangle wearing the two methods popover needs, so a menu can hang where
+ * something WAS.
+ *
+ * For controls that do not survive the act of opening the menu: a mark's badge
+ * is a CodeMirror widget, and the repaint that closes the strip rebuilds it —
+ * measured afterwards it answers 0,0 and the menu lands in the window's corner.
+ * Freezing the rect at press time keeps the menu where the finger was.
+ *
+ * `contains` says false: there is no element left to have been clicked inside.
+ */
+export const frozenAnchor = (rect) => ({
+  getBoundingClientRect: () => rect,
+  contains: () => false,
+});
+
+/**
  * A small menu anchored under the control that opened it — never a panel across
  * the screen. Closes on the next click anywhere, and a second click on the
  * control that opened it closes it too (toggle).
