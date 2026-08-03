@@ -9,6 +9,7 @@
 
 import { fetch as tauriFetch } from "@tauri-apps/plugin-http";
 import { contextRisk, hardGate, flags, wordCount } from "./ai-check.js";
+import { providers as CLI_PROVIDERS, adapters as CLI_ADAPTERS, probeAgent } from "./ai-cli.js";
 import { effectiveLang, getSettings } from "./settings.js";
 import { detectTextLang } from "./lang-detect.js";
 import { t } from "./i18n.js";
@@ -555,8 +556,8 @@ export const jobShortcuts = () =>
  *
  * `protokol` is the wire shape, and there are only a handful: "openai" (the de
  * facto standard — POST /chat/completions + GET /models, a bearer key),
- * "gemini", "anthropic", "ollama". (A gitignored local module may add more — see
- * the LOCAL_PROVIDERS merge below.) Every
+ * "gemini", "anthropic", "ollama", plus "cli" — the one that is not a wire at
+ * all but a command on this machine (ai-cli.js). Every
  * hosted model shipping this year speaks "openai", which is why the "ozel" row
  * needs no code at all:
  * point it at a base URL, paste a key, pick a model. Tomorrow's provider is a
@@ -582,16 +583,14 @@ export const jobShortcuts = () =>
  * menu. The hint now says the model and nothing else; the network-and-money
  * words belong to KR-53's single global warning, not to a fragment in a menu.
  */
-// An optional local-only providers module (src/*.local.js) — never distributed.
-// It is gitignored, so a clean clone or a distribution build never sees it: the
-// glob matches nothing and these providers are simply absent from the package.
-// Where the file does exist it still only joins when the KISISEL flag is set, so
-// even a build taken there is clean. Two gates: the file, and the flag.
-const yerelModul =
-  Object.values(import.meta.glob("./*.local.js", { eager: true }))[0] ?? {};
-const yerelAcik = Boolean(import.meta.env.VITE_KISISEL) && Array.isArray(yerelModul.providers);
-const LOCAL_PROVIDERS = yerelAcik ? yerelModul.providers : [];
-const LOCAL_ADAPTERS = yerelAcik ? yerelModul.adapters : {};
+// The CLI agents ship with the app now (3 Ağu 2026). They used to arrive through
+// an optional gitignored module loaded by import.meta.glob, behind a build flag —
+// two gates whose whole purpose was keeping them OUT of the package. The decision
+// reversed, so the indirection went with it: a plain import says what is true.
+//
+// What kept the old arrangement honest still holds, only differently: an agent
+// that is not installed never reaches the connection list (see availableProviders
+// below), so the option nobody can use is not shown to everybody.
 
 export const PROVIDERS = [
   { id: "gemini", ad: "Gemini", anahtarli: true, protokol: "gemini" },
@@ -644,9 +643,52 @@ export const PROVIDERS = [
     protokol: "openai",
     baseUrlKullanicidan: true,
   },
-  // A local-only providers module may append here, or not at all.
-  ...LOCAL_PROVIDERS,
+  // The CLI agents, at the end: they are the exception in every way the rows
+  // above are the rule (no key, no wire protocol of their own, subscription
+  // rather than tokens), and only appear at all when installed.
+  ...CLI_PROVIDERS,
 ];
+
+/**
+ * Which CLI agents answered. `null` until asked — and "not asked yet" must not
+ * read as "not installed", or the list would flicker its rows away on a slow
+ * machine and no one would ever see them.
+ */
+let cliReady = null;
+
+/**
+ * Asks each CLI row whether its command exists. Called once at startup, off the
+ * critical path: the answer is wanted by the time Settings is opened, and
+ * nobody opens Settings in the first second.
+ */
+export async function refreshCliAvailability() {
+  const answers = await Promise.all(
+    CLI_PROVIDERS.map(async (row) => ((await probeAgent(row)) ? row.id : null)),
+  );
+  cliReady = new Set(answers.filter(Boolean));
+}
+
+/**
+ * The provider rows worth offering on this machine.
+ *
+ * Everything hosted is always offerable — a key is something you can go and get.
+ * A CLI agent is not: either the command is on the machine or it is not, and an
+ * option that cannot work is worse than a missing one, because it reads as a
+ * promise. (KR-42's rule, one level up: there it was a job with no model, here
+ * it is a connection with no program.)
+ *
+ * `keep` is the type a connection ALREADY uses. A saved connection never loses
+ * its own row from the dropdown, whatever the probe said — a select whose value
+ * is missing from its options quietly shows the first one instead, and the row
+ * then looks healthy while pointing somewhere else entirely. That is exactly how
+ * the orphan model line hid itself (B-28); once was enough.
+ */
+export function providerRows(keep = null) {
+  if (!cliReady) return PROVIDERS;
+  return PROVIDERS.filter(
+    (row) => row.protokol !== "cli" || row.id === keep || cliReady.has(row.id),
+  );
+}
 
 /** The registry row for a connection's type, or null for an unknown/old one. */
 export const providerMeta = (tur) => PROVIDERS.find((p) => p.id === tur) ?? null;
@@ -716,6 +758,10 @@ function configFor(baglanti, model) {
     basliklar: p.basliklar ?? {},
     usageInclude: !!p.usageInclude,
     ucretli: !!p.ucretli,
+    // A CLI agent bills nothing per call; it spends a subscription. Said
+    // separately from `ucretli` because "may cost money" would be the wrong
+    // sentence for someone who has already paid.
+    abonelik: !!p.abonelik,
     agaCikar,
   };
 }
@@ -747,8 +793,8 @@ export async function suggest(job, text, { signal, options } = {}) {
     gemini: askGemini,
     anthropic: askClaude,
     ollama: askOllama,
-    // Extra adapters arrive from the local module, or not at all.
-    ...LOCAL_ADAPTERS,
+    // One more shape: a command on this machine rather than a URL (ai-cli.js).
+    ...CLI_ADAPTERS,
   };
 
   // The output language follows the TEXT, not the interface (Zafer, 19 Tem);

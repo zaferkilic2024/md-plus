@@ -2,9 +2,13 @@
 //
 // It lived in chrome.js, which is fine until something outside the strip wants
 // a menu: search.js does now (the scope picker), and importing chrome.js pulls
-// in ai.js behind it — whose `import.meta.glob` is a Vite-only form that throws
-// the moment a Node test touches the chain. A menu is not the tab strip's
-// property; it is a shape the whole app uses (chrome, right-click, search).
+// in ai.js behind it — which at the time meant `import.meta.glob`, a Vite-only
+// form that threw the moment a Node test touched the chain.
+//
+// (That glob is gone since 3 Ağu 2026 — the CLI agents ship normally now — so
+// the chain would survive Node today. The separation stands on its own: a menu
+// is not the tab strip's property, it is a shape the whole app uses — chrome,
+// right-click and search. The test was what made us look, not the reason.)
 
 import { GLYPH } from "./strip.js";
 import { t } from "./i18n.js";

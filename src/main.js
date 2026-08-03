@@ -1,7 +1,7 @@
 import { open, save } from "@tauri-apps/plugin-dialog";
 import { invoke } from "@tauri-apps/api/core";
 import { createSurface, scrollToAnchor, suggestion, topLineText } from "./surface.js";
-import { documentJobs, jobOptions, provider } from "./ai.js";
+import { documentJobs, jobOptions, provider, refreshCliAvailability } from "./ai.js";
 import { MarkStore } from "./marks.js";
 import {
   createPdfSearch,
@@ -1952,3 +1952,10 @@ loadSettings()
   .then(() => applyLanguage())
   .then(initDraftFolder)
   .then(restoreSession);
+
+// Which CLI agents are on this machine — asked once, and deliberately not
+// awaited by anything above: the answer is wanted by the time someone opens
+// Settings, and nobody opens Settings in the first second. Until it lands,
+// every provider is offered (an unasked question must not read as a "no").
+// It cannot reject; probeAgent answers false for anything that goes wrong.
+refreshCliAvailability();

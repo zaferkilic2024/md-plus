@@ -342,5 +342,7 @@ export const en = {
   "warn.remote": "Your text is sent to the provider",
   "warn.local": "Your text never leaves this computer",
   "warn.cost": ", may cost money",
+  // For an installed CLI agent: not money, but a subscription already paid for.
+  "warn.subscription": ", spends your subscription",
   "warn.tail": " and the model can make things up; verify what it writes.",
 };

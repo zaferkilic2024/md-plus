@@ -1,12 +1,17 @@
 // The one warning's SENTENCE — pure, and deliberately alone in this file.
 //
 // It lives apart from warning.js because warning.js imports ai.js (for the live
-// provider list and the DOM note), and ai.js uses Vite's `import.meta.glob` to
-// load an optional local providers module — which does not exist under Node. So a test that
-// imported warning.js just to check the wording pulled the whole Vite-only chain
-// in and crashed. The wording has no need of any of that: it is a function of a
-// list of gateways, nothing more. Kept here, `test/uyari.test.mjs` reaches it
-// without touching ai.js.
+// provider list and the DOM note). That import used to be fatal under Node —
+// ai.js loaded its optional local module through Vite's `import.meta.glob`, a
+// form Node does not have — so a test that only wanted to check the wording
+// pulled in a Vite-only chain and crashed.
+//
+// That particular chain is gone (3 Ağu 2026: the CLI agents ship normally, so
+// the glob went with them, and ai.js does import under Node today). The split
+// stays, and not out of inertia: the wording is a function of a list of
+// gateways and nothing else, which is exactly what makes it testable — and
+// ai.js is one Tauri-only import away from being unloadable again, at which
+// point the sentence would go down with it. A pure thing kept pure.
 
 import { t } from "./i18n.js";
 
@@ -27,6 +32,12 @@ export function warningText(gateways) {
   const nereye = gateways.some((each) => each.agaCikar)
     ? t("warn.remote")
     : t("warn.local");
-  const ucret = gateways.some((each) => each.ucretli) ? t("warn.cost") : "";
+  // Two ways a model can cost something, and they are not the same thing to say.
+  // A metered API bills the card; a CLI agent spends a subscription that is
+  // already paid for. Both can be true at once — one job on an API key, another
+  // on an installed agent — so neither replaces the other.
+  const ucret =
+    (gateways.some((each) => each.ucretli) ? t("warn.cost") : "") +
+    (gateways.some((each) => each.abonelik) ? t("warn.subscription") : "");
   return `${nereye}${ucret}${t("warn.tail")}`;
 }

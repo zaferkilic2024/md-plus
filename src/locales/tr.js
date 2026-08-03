@@ -343,5 +343,7 @@ export const tr = {
   "warn.remote": "Yazdığın metin sağlayıcıya gider",
   "warn.local": "Yazdığın metin bu bilgisayardan çıkmaz",
   "warn.cost": ", ücretli olabilir",
+  // Kurulu bir CLI ajanı için: para değil, zaten ödenmiş bir abonelik harcanır.
+  "warn.subscription": ", aboneliğinden düşer",
   "warn.tail": " ve model uydurabilir, yazdığını doğrula.",
 };

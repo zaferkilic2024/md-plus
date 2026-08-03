@@ -19,13 +19,13 @@ import {
   updateSetting,
 } from "./settings.js";
 import {
-  PROVIDERS,
   TRANSLATION_LANGS,
   connectionModels,
   jobName,
   languageName,
   providerLabel,
   providerMeta,
+  providerRows,
   reportJobs,
   textJobs,
 } from "./ai.js";
@@ -103,7 +103,10 @@ function slider(label, key, format, renders) {
 
 // The provider list is the registry in ai.js — one source of truth. Adding a
 // provider there makes it appear here with no change to this file.
-const SAGLAYICILAR = PROVIDERS;
+// Not the full registry any more: a CLI agent that is not installed on this
+// machine never becomes an option (ai.js/providerRows). The connection's own
+// type is always kept, so a saved row never loses the entry it points at.
+const SAGLAYICILAR = providerRows;
 const saglayiciMeta = providerMeta;
 const yeniId = () => `id_${Math.random().toString(36).slice(2, 9)}`;
 
@@ -180,7 +183,7 @@ function baglantilarTab(render) {
 
     const tur = document.createElement("select");
     tur.className = "ai-mini";
-    for (const s of SAGLAYICILAR) {
+    for (const s of SAGLAYICILAR(b.tur)) {
       const o = document.createElement("option");
       o.value = s.id;
       o.textContent = providerLabel(s);

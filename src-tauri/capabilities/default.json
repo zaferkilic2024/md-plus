@@ -28,6 +28,39 @@
       "allow": [{ "path": "**" }]
     },
     {
+      "identifier": "shell:allow-execute",
+      "allow": [
+        {
+          "name": "claude",
+          "cmd": "claude",
+          "args": [
+            "-p",
+            { "validator": "[\\s\\S]+" },
+            "--output-format",
+            "json",
+            "--allowedTools",
+            { "validator": "^$" },
+            "--model",
+            { "validator": "[a-zA-Z0-9._-]+" }
+          ]
+        },
+        { "name": "claude-version", "cmd": "claude", "args": ["--version"] },
+        {
+          "name": "agy",
+          "cmd": "agy",
+          "args": [
+            "-p",
+            { "validator": "[\\s\\S]+" },
+            "--model",
+            { "validator": "[a-zA-Z0-9 ()._-]+" },
+            "--sandbox",
+            "--disable-slash-commands"
+          ]
+        },
+        { "name": "agy-models", "cmd": "agy", "args": ["models"] }
+      ]
+    },
+    {
       "identifier": "http:default",
       "allow": [
         { "url": "http://127.0.0.1:11434/*" },
