@@ -14,6 +14,7 @@ import { EditorView } from "@codemirror/view";
 import { openSettings } from "./settings-panel.js";
 import { goster } from "./shortcuts.js";
 import { GLYPH } from "./strip.js";
+import { fileNameOf } from "./paths.js";
 import { documentJobs, jobName, jobShortcut, provider } from "./ai.js";
 import { t } from "./i18n.js";
 import { icon, popover } from "./popover.js";
@@ -151,7 +152,13 @@ function outlineOf(text) {
  * is a document in it) but no journey to return from. Everything else about the
  * group is identical, because it is the same group.
  */
-export function createChrome({ onCommand, activeTab, onBack, withBack = true }) {
+export function createChrome({
+  onCommand,
+  activeTab,
+  onBack,
+  onFollowTarget,
+  withBack = true,
+}) {
   const left = document.createElement("div");
   left.className = "strip-left";
 
@@ -315,13 +322,32 @@ export function createChrome({ onCommand, activeTab, onBack, withBack = true }) 
     // text, or the anchor itself while that page is still undrawn). Asking
     // `list()` here used to hide a PDF's marks until their page happened to be
     // on screen, which greyed the tool on a document that plainly had marks.
+    // Where a mark WENT, beside what it says (3 Ağu). The record has carried
+    // this since the first sidecar was written — `aktarma.hedefBelge`, the
+    // document a piece was moved into — and until now nothing showed it. So the
+    // question "which passages did I take out of this source, and where did
+    // they land?" had no answer anywhere in the app, while the answer sat in a
+    // file next to the document.
+    //
+    // No new screen, no new record, no new store: a second word on a row that
+    // was already there. Reading it left to right gives the whole sentence —
+    // the passage, then the document it became part of.
     const menu = popover(
       marksTool,
-      tab.marks.listing().map(({ record, text }) => ({
-        icon: record.yorum ? "note" : undefined,
-        label: snippetOf(text),
-        run: () => tab.marks.travelTo(record.id),
-      })),
+      tab.marks.listing().map(({ record, text }) => {
+        const hedef = record.aktarma?.hedefBelge;
+        return {
+          icon: record.yorum ? "note" : undefined,
+          label: snippetOf(text),
+          run: () => tab.marks.travelTo(record.id),
+          // The file name alone on the row; the whole path waits in the tooltip.
+          // A relative path ("notlar/2026/denge.md") would push the passage off
+          // its own row, and the passage is what the row is about.
+          trail: hedef ? fileNameOf(hedef) : undefined,
+          trailTitle: hedef,
+          trailRun: () => onFollowTarget?.(hedef, null),
+        };
+      }),
     );
     if (!menu) return; // second click toggled it shut
     menu.classList.add("marklist");

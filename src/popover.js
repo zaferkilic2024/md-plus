@@ -67,6 +67,31 @@ export function popover(anchor, items) {
       item.run();
     };
 
+    // A second thing the row can be about, named in words on the right — the
+    // marks list uses it: a mark that has been moved somewhere says where, and
+    // the name is the way there. Two destinations in one row, and the row reads
+    // as the sentence it is: "this passage → that document".
+    if (item.trail) {
+      const row = document.createElement("div");
+      row.className = "popover-row";
+
+      const jump = document.createElement("button");
+      jump.className = "popover-trail";
+      jump.textContent = item.trail;
+      jump.title = item.trailTitle ?? item.trail;
+      jump.onclick = (event) => {
+        // Without this the row's own click fires too and both destinations are
+        // opened, the second landing on top of the first.
+        event.stopPropagation();
+        close();
+        item.trailRun();
+      };
+
+      row.append(entry, jump);
+      menu.append(row);
+      continue;
+    }
+
     // An item can carry its own ✕ (the tab stack uses it: a tab scrolled out of
     // sight has no reachable close button of its own).
     if (!item.drop) {

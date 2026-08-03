@@ -2510,6 +2510,35 @@ body.dragging .body {
   font-size: 11px;
 }
 
+/* Where a marked passage went — the second half of a marks-list row (KR-81's
+   record, finally readable). Quiet: the passage is what the row is about and
+   must stay the loudest thing on it, so this is the label size, one step down
+   the ramp, and it only takes on the accent when pointed at. `flex: none` and
+   the max-width keep a long file name from eating the passage's half.
+
+   `.popover .popover-trail`, not `.popover-trail`: `.popover button` is a class
+   plus a type (0,1,1) and beats a lone class (0,1,0). Written the short way,
+   this row's 9px padding and 13.5px size would win and the name would come out
+   as loud as the passage. Same trap as .popover-drop, five doors down. */
+.popover .popover-trail {
+  flex: none;
+  max-width: 42%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  width: auto;
+  padding: 0 8px 0 4px;
+  border: 0;
+  background: none;
+  font-size: 11px;
+  color: var(--n5);
+  cursor: pointer;
+}
+.popover .popover-trail:hover {
+  color: var(--accent);
+  text-decoration: underline;
+}
+
 /* "This may not have fit" — between the control line and the answer, because a
    caveat under the text arrives after the reader has already believed it.
    It borrows the warning tokens the refusal box uses (--warning-ground and its

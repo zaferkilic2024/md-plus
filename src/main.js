@@ -178,6 +178,14 @@ const chromeDeps = {
     if (tab?.view) openSearch(tab.view);
     else tab?.search?.open();
   },
+  // A mark's target, from the marks list. The same door a link goes through —
+  // because that is what this is: the record kept when the piece was moved
+  // names a document, and following it is following a link. The way back is
+  // written on the way out, so Alt+← returns to the mark.
+  onFollowTarget: (path, at) => {
+    const tab = transfer.open ? transfer.source : activeTab();
+    if (tab && path) followLink(tab, path, at);
+  },
   onCommand: (command) => {
     // Home is the app's, not the document's: it opens with nothing open, which
     // is the case it is most needed in.
@@ -248,6 +256,10 @@ function applyLanguage() {
     activeTab: () => (transfer.open ? transfer.target : null),
     onCommand: () => {},
     onBack: () => {},
+    // The target's marks have targets of their own, and its list offers the
+    // same jump. Without this the name would be drawn and do nothing when
+    // clicked — a control that lies about being one.
+    onFollowTarget: (path, at) => chromeDeps.onFollowTarget(path, at),
     withBack: false,
   });
   windowControls.dispose();
@@ -1364,7 +1376,11 @@ async function followLink(tab, target, at = null) {
   // The way back (18 Tem): where you stood when you left. ONLY link follows
   // write here — switching tabs or opening from a list is not a journey, and
   // recording those would make this a second session history, not a "back".
-  if (tab.path) {
+  // `tab.view` is null on a PDF (KR-68), and every anchor here is a LINE of
+  // text — a PDF has no such thing, so there is nothing to write and nothing to
+  // come back to. Asked for by the marks list, which follows a mark's target
+  // from either kind of document.
+  if (tab.path && tab.view) {
     // The line you CLICKED, not the one at the top of the window (29 Tem). "Back"
     // is a promise about the place you left, and after a transfer the place is a
     // citation glyph at the end of a quote halfway down the page — the top line
