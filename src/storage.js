@@ -204,22 +204,60 @@ export async function adoptDraftImages(documentPath) {
  * ahead either way — but it is reported, never swallowed: the backup is what
  * IS-13 (no data loss) rests on.
  *
+ * The write itself goes through a temporary file: the text lands in
+ * `.mdplus/<name>.tmp` and only then takes the document's place, in one move.
+ * A write interrupted halfway — power cut, crash, a full disk — then costs the
+ * temporary file, never the document. Without this the user is left holding a
+ * half-written `.md`, and the sentence we tell people ("your notes are safe")
+ * would be false at exactly the moment it matters.
+ *
+ * Two deliberate fallbacks, both of the same shape — a safety feature must
+ * never become the reason the text is lost:
+ *
+ *   · the sidecar folder cannot be made (read-only medium, denied path) →
+ *     write straight to the document, as this function always did;
+ *   · the move fails (Windows hands out `ERROR_ACCESS_DENIED` when another
+ *     process — a sync client, a scanner — holds the file open, in cases where
+ *     a plain write would still succeed) → write straight to the document and
+ *     clear the leftover.
+ *
+ * Both give up atomicity and keep the text. `.bak` is still there underneath.
+ *
  * @returns {Promise<{backupFailed: Error | null}>}
  */
 export async function writeDocument(path, text) {
   const sep = separator(path);
   let backupFailed = null;
+  let folder = null;
 
   try {
+    folder = await sidecarFolder(path);
     if (await exists(path)) {
       const previous = await readTextFile(path);
-      const folder = await sidecarFolder(path);
       await writeTextFile(`${folder}${sep}${fileNameOf(path)}.bak`, previous);
     }
   } catch (error) {
     backupFailed = error;
   }
 
-  await writeTextFile(path, text);
+  if (!folder) {
+    await writeTextFile(path, text);
+    return { backupFailed };
+  }
+
+  const temp = `${folder}${sep}${fileNameOf(path)}.tmp`;
+  try {
+    await writeTextFile(temp, text);
+    await rename(temp, path);
+  } catch {
+    await writeTextFile(path, text);
+    // The leftover would otherwise sit in .mdplus/ looking like a real backup.
+    try {
+      if (await exists(temp)) await remove(temp);
+    } catch {
+      // Nothing to do: the document is written, which is the part that matters.
+    }
+  }
+
   return { backupFailed };
 }
