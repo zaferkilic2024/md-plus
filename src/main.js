@@ -504,7 +504,7 @@ function renderTabs() {
 
   // The conditional tools on the left: back (only with somewhere to go back
   // to) and the marks list (only with marks to list).
-  chrome.setCanGoBack(backStack.length > 0);
+  chrome.setCanGoBack((activeTab()?.backStack?.length ?? 0) > 0);
   chrome.updateMarksTool();
   chrome.updateContentsTool();
 
@@ -1380,39 +1380,29 @@ async function followLink(tab, target, at = null) {
   // The way back (18 Tem): where you stood when you left. ONLY link follows
   // write here — switching tabs or opening from a list is not a journey, and
   // recording those would make this a second session history, not a "back".
-  // `tab.view` is null on a PDF (KR-68), and every anchor here is a LINE of
-  // text — a PDF has no such thing, so there is nothing to write and nothing to
-  // come back to. Asked for by the marks list, which follows a mark's target
-  // from either kind of document.
-  if (tab.path && tab.view) {
-    // The line you CLICKED, not the one at the top of the window (29 Tem). "Back"
-    // is a promise about the place you left, and after a transfer the place is a
-    // citation glyph at the end of a quote halfway down the page — the top line
-    // is a different sentence, sometimes a blank one, and blank anchors nothing
-    // (Zafer: "geri dediğimde tıkladığım yere dönmedi"). Its offset rides along
-    // so a line that says the same thing twice is not a coin toss.
-    const line = at == null ? null : tab.view.state.doc.lineAt(at);
-    backStack.push({
-      path: tab.path,
-      anchor: line ? line.text.trim() : topLineText(tab.view),
-      near: line ? line.from : 0,
-      spot: line != null,
-    });
-    if (backStack.length > 50) backStack.shift();
-  } else if (tab.path && tab.pdf) {
-    // A PDF leaves a page behind, not a line.
-    //
-    // This branch was missing and the arrow simply greyed out: leaving a PDF
-    // wrote nothing, so there was nowhere to come back to (Zafer, 3 Ağu). The
-    // reasoning that skipped it was half right — every anchor here is a line of
-    // text and a PDF has none — and half wrong, because a PDF does have a place
-    // you were: the page. That is what its session remembers too, and it is the
-    // only resolution the format offers.
-    backStack.push({ path: tab.path, page: tab.pdf.page ?? 1 });
-    if (backStack.length > 50) backStack.shift();
-  }
+  const leaving = placeLeft(tab, at);
+
   const cameFrom = tab.path;
   await openDocument(path);
+
+  // Written onto the tab we ARRIVED at, not into one stack for the whole app
+  // (3 Ağu, Zafer). "Back" is a promise made to a document: it means "return
+  // to where you came into THIS one from". Kept globally, the promise was made
+  // in one tab and honoured in another — walk to a third tab that nobody
+  // linked into and the arrow was still lit, offering to leave for a document
+  // you had not come from (Zafer: "geri oku bir önceki belgedeki gibi
+  // çalışıyor").
+  //
+  // The alternative — recording tab switches too, so Back rewinds everything
+  // that happened — is the second session history KR-82 already turned down.
+  // Switching tabs is a glance, not a journey; twenty glances would mean twenty
+  // presses, and the arrow would stop meaning "where I came from".
+  const arrived = activeTab();
+  if (leaving && arrived) {
+    arrived.backStack ??= [];
+    arrived.backStack.push(leaving);
+    if (arrived.backStack.length > 50) arrived.backStack.shift();
+  }
 
   // A citation's link can only name a HEADING (`belge.md#bölüm`) — the thing
   // that actually addresses the passage is the mark's id, and that can never be
@@ -1518,14 +1508,50 @@ function runPdfJob(tab, job, options) {
   suggestion.run(null, job, { source: text, options });
 }
 
-/** The stack a followed link leaves behind: (document, the line you were on).
-    In memory only — a restart starts you fresh, like Aktarma (KR-41's spirit). */
-const backStack = [];
+/**
+ * The place a document is being left FROM, as the back stack keeps it.
+ *
+ * Two shapes, because two kinds of document have two kinds of "where":
+ *
+ *   .md  — the line you CLICKED, not the one at the top of the window (29 Tem).
+ *          "Back" is a promise about the place you left, and after a transfer
+ *          that place is a citation glyph halfway down the page; the top line
+ *          is a different sentence, sometimes a blank one, and blank anchors
+ *          nothing (Zafer: "geri dediğimde tıkladığım yere dönmedi"). The
+ *          offset rides along so a line that says the same thing twice is not
+ *          a coin toss.
+ *   .pdf  — the page. A PDF has no lines, but it does have a place, and this is
+ *          the same resolution its session remembers.
+ *
+ * Each tab keeps its own stack (`tab.backStack`), in memory only — a restart
+ * starts you fresh, like Aktarma (KR-41's spirit).
+ */
+function placeLeft(tab, at = null) {
+  if (!tab?.path) return null;
+  if (tab.view) {
+    const line = at == null ? null : tab.view.state.doc.lineAt(at);
+    return {
+      path: tab.path,
+      anchor: line ? line.text.trim() : topLineText(tab.view),
+      near: line ? line.from : 0,
+      spot: line != null,
+    };
+  }
+  if (tab.pdf) return { path: tab.path, page: tab.pdf.page ?? 1 };
+  return null;
+}
 
-/** Alt+← or the strip's back arrow: return to where the last link was followed
-    from — the document AND the line. */
+/**
+ * Alt+← or the strip's back arrow: return to where the link into THIS document
+ * was followed from — the document AND the place.
+ *
+ * "This document" is the whole of it. The stack belongs to the tab you are
+ * standing in, so a tab nobody linked into has nowhere to go and says so with
+ * a dead arrow; and a tab that does have somewhere keeps it while you wander
+ * off to others and come back.
+ */
 async function goBack() {
-  const entry = backStack.pop();
+  const entry = activeTab()?.backStack?.pop();
   renderTabs(); // the arrow may have just run out of places to go
   if (!entry) return;
 
