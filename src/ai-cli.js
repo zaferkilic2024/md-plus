@@ -350,15 +350,21 @@ export const providers = [
     ad: "Codex",
     anahtarli: false,
     protokol: "cli",
-    // İKİ ADAY, ve ikisi de gerçek kurulumlar. npm'den gelen Codex Windows'ta
-    // gerçek bir .exe bırakmaz, sarmalayıcı bırakır (codex.cmd); resmi
-    // kurucudan gelen ise düpedüz codex.exe olur. Hangisinin durduğu ancak
-    // denenerek bilinir — biri seçilip ötekine bakılmasaydı, o kurulumdaki
-    // kullanıcı hiçbir şey göremeyeceği için sorunu bildiremezdi bile.
-    variants: [
-      { name: "codex", probe: "codex-version", probeArgs: ["--version"] },
-      { name: "codex-cmd", probe: "codex-version-cmd", probeArgs: ["--version"] },
-    ],
+    // YALNIZ GERÇEK .exe (Zafer, 3 Ağu). npm'den kurulan Codex Windows'ta bir
+    // .cmd sarmalayıcısı bırakır ve o yol denendi, çalışmıyor: Rust bir batch
+    // dosyasına satır sonu içeren argüman geçirmeyi reddediyor
+    // ("batch file arguments are invalid" — CVE-2024-24576'nın yaması). Bizim
+    // gönderdiğimiz her şey çok satırlı, yani sarmalayıcı üzerinden HİÇBİR iş
+    // yapılamaz.
+    //
+    // Denenip bırakılan iki kaçamak, ikisi de daha kötüydü: prompt'u geçici bir
+    // dosyaya yazıp ajana okutmak (çalıştı, ama her istekte diske yazma + ajanın
+    // fazladan bir okuma turu) ve stdin'den beslemek (Tauri'de stdin'i kapatma
+    // yolu yok, süreç EOF bekleyip asılıyor).
+    //
+    // Sonuç: .exe yoksa satır hiç görünmez — KR-42'nin dediği bu. Yarım çalışan
+    // bir satır, hiç olmayandan kötüdür.
+    variants: [{ name: "codex", probe: "codex-version", probeArgs: ["--version"] }],
     abonelik: true,
     maxLength: 20000,
     // Model listesi CANLI ama komuttan değil: Codex'in model listeleme komutu
