@@ -906,11 +906,15 @@ async function askOllama(kapi, prompt, signal) {
 
   if (!yanit.ok) throw Object.assign(new Error(await yanit.text()), { durum: yanit.status });
 
-  const veri = await yanit.json();
+  return readOllama(await yanit.json());
+}
+
+/** What an Ollama body means. Pure — see readOpenAI for why. */
+export function readOllama(veri) {
   return {
-    metin: veri.response ?? "",
+    metin: veri?.response ?? "",
     // Costs nothing, but the writer may still want to know the size of the call.
-    kullanim: { giren: veri.prompt_eval_count ?? 0, cikan: veri.eval_count ?? 0 },
+    kullanim: { giren: veri?.prompt_eval_count ?? 0, cikan: veri?.eval_count ?? 0 },
   };
 }
 
@@ -945,17 +949,25 @@ async function askClaude(kapi, prompt, signal) {
 
   if (!yanit.ok) throw Object.assign(new Error(await yanit.text()), { durum: yanit.status });
 
-  const veri = await yanit.json();
-  const metin = (veri.content ?? [])
-    .filter((parca) => parca.type === "text")
-    .map((parca) => parca.text)
-    .join("");
+  return readClaude(await yanit.json());
+}
 
+/**
+ * What a Claude body means. Pure — see readOpenAI for why.
+ *
+ * The content is a LIST of blocks and only the text ones are the answer: a
+ * thinking block or a tool block sitting in front of it is not the paragraph
+ * the writer asked for.
+ */
+export function readClaude(veri) {
   return {
-    metin,
+    metin: (veri?.content ?? [])
+      .filter((parca) => parca.type === "text")
+      .map((parca) => parca.text)
+      .join(""),
     kullanim: {
-      giren: veri.usage?.input_tokens ?? 0,
-      cikan: veri.usage?.output_tokens ?? 0,
+      giren: veri?.usage?.input_tokens ?? 0,
+      cikan: veri?.usage?.output_tokens ?? 0,
     },
   };
 }
@@ -1001,12 +1013,16 @@ async function askGemini(kapi, prompt, signal) {
 
   if (!yanit.ok) throw Object.assign(new Error(await yanit.text()), { durum: yanit.status });
 
-  const veri = await yanit.json();
+  return readGemini(await yanit.json());
+}
+
+/** What a Gemini body means. Pure — see readOpenAI for why. */
+export function readGemini(veri) {
   return {
-    metin: veri.candidates?.[0]?.content?.parts?.[0]?.text ?? "",
+    metin: veri?.candidates?.[0]?.content?.parts?.[0]?.text ?? "",
     kullanim: {
-      giren: veri.usageMetadata?.promptTokenCount ?? 0,
-      cikan: veri.usageMetadata?.candidatesTokenCount ?? 0,
+      giren: veri?.usageMetadata?.promptTokenCount ?? 0,
+      cikan: veri?.usageMetadata?.candidatesTokenCount ?? 0,
     },
   };
 }
@@ -1085,22 +1101,29 @@ async function askOpenAI(kapi, prompt, signal) {
 
   if (!yanit.ok) throw Object.assign(new Error(await yanit.text()), { durum: yanit.status });
 
-  const veri = await yanit.json();
+  return readOpenAI(await yanit.json());
+}
 
-  // An OpenAI-compatible gateway (OpenRouter the worst offender) can hand back an
-  // upstream failure inside a 200 OK body — a rate-limited free model returns
-  // code 429 here, not as an HTTP status. Missing this meant the raw JSON landed
-  // in front of the writer, unreadable and uncloseable.
-  if (veri.error) {
+/**
+ * What an OpenAI-shaped body means. Pure, so it can be held against the real
+ * thing (`test/saglayici.test.mjs`) without a network.
+ *
+ * An OpenAI-compatible gateway (OpenRouter the worst offender) can hand back an
+ * upstream failure inside a 200 OK body — a rate-limited free model returns
+ * code 429 here, not as an HTTP status. Missing this meant the raw JSON landed
+ * in front of the writer, unreadable and uncloseable.
+ */
+export function readOpenAI(veri) {
+  if (veri?.error) {
     throw Object.assign(new Error(veri.error.message ?? t("ai.err.providerError")), {
       durum: veri.error.code ?? 500,
       ucretsizKota: /rate-limit/i.test(veri.error.metadata?.raw ?? ""),
     });
   }
 
-  const u = veri.usage ?? {};
+  const u = veri?.usage ?? {};
   return {
-    metin: veri.choices?.[0]?.message?.content ?? "",
+    metin: veri?.choices?.[0]?.message?.content ?? "",
     kullanim: {
       giren: u.prompt_tokens ?? 0,
       cikan: u.completion_tokens ?? 0,
