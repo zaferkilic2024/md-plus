@@ -61,7 +61,14 @@ async function askCli(cfg, prompt, signal) {
     );
   }
 
-  const command = Command.create(cfg.command, cfg.args(cfg.model, WRITER_PREAMBLE + prompt));
+  // Hangi adla çalıştığı denemede belli oldu (probeAgent). Bu ad, yetki
+  // listesindeki kayıt adıdır — çalıştırılan gerçek program onun `cmd` alanında
+  // yazar. İkisini karıştırmak "program not allowed on the configured shell
+  // scope" hatası verir ve satır listede dururken hiçbir iş yapmaz.
+  const aday = activeVariant(cfg);
+  if (!aday) throw new Error(`${cfg.ad} için çalıştırılabilir bir komut bulunamadı.`);
+
+  const command = Command.create(aday.name, cfg.args(cfg.model, WRITER_PREAMBLE + prompt));
 
   const res = await new Promise((resolve, reject) => {
     signal?.addEventListener("abort", () => reject(new DOMException("iptal", "AbortError")));
@@ -79,57 +86,120 @@ async function askCli(cfg, prompt, signal) {
 }
 
 /**
- * Is this agent actually on the machine?
+ * Bu ajan bu makinede var mı, ve varsa HANGİ ADLA çalışıyor?
  *
- * KR-42 says a job with no model behind it is not drawn at all; the same rule
- * reaches further once CLI agents ship to everyone. Almost nobody has these
- * installed, and an option that cannot possibly work is worse than a missing
- * one — it looks like a promise. So the row is asked, once, whether its command
- * answers, and a row that does not answer never reaches the connection list.
+ * İki soru tek yerde soruluyor, çünkü cevapları aynı denemeden çıkıyor.
  *
- * The probe is the cheapest thing the agent can do (`--version`, or a `models`
- * listing it already knows how to run). Its result is cached per row for the
- * session: this is asked while a panel is being drawn, and spawning a process
- * on every repaint would be paid for in visible stutter.
+ * (1) VAR MI. KR-42 modeli olmayan işi hiç çizmiyordu; ajanlar herkese açılınca
+ *     aynı kural bir üst seviyeye taşındı. Çoğu makinede bunlar kurulu değil ve
+ *     çalışamayacak bir seçenek, hiç olmayandan kötüdür — söz gibi görünür.
  *
- * Failure of any kind — command missing, PATH not carrying it, a non-zero exit —
- * reads as "not installed". There is no case where a probe that throws should
- * still put the row on screen.
+ * (2) HANGİ ADLA. Aynı araç makineden makineye farklı bir dosya olarak kurulur.
+ *     Codex npm'den geliyorsa Windows'ta gerçek bir .exe değil bir sarmalayıcı
+ *     bırakır (codex.cmd); resmi kurucudan geliyorsa düpedüz codex.exe olur.
+ *     Tek ada bağlamak, kurulumun bir türünü sessizce dışarıda bırakmaktır —
+ *     ve dışarıda kalan kullanıcı hiçbir şey göremeyeceği için sorunu bize
+ *     bildiremez bile. O yüzden satır adayları sırayla dener; ilk cevap veren
+ *     kazanır ve o oturum boyunca kullanılacak ad odur (`resolved`).
+ *
+ * Deneme, ajanın yapabileceği en ucuz şey (`--version`, ya da zaten bildiği bir
+ * `models` listesi). Sonuç satır başına bir kez hesaplanır: bu soru panel
+ * çizilirken soruluyor ve her çizimde süreç başlatmak gözle görülür takılma
+ * demek olurdu.
+ *
+ * Her türlü başarısızlık — komut yok, PATH'te değil, sıfırdan farklı çıkış —
+ * "kurulu değil" diye okunur. Cevap vermeyen bir ajanı listeye koymanın hiçbir
+ * doğru hâli yok.
  */
 const probed = new Map();
 
 export function probeAgent(row) {
-  if (!row.probe) return Promise.resolve(true);
+  const adaylar = row.variants ?? [];
+  if (!adaylar.length) return Promise.resolve(true);
   if (probed.has(row.id)) return probed.get(row.id);
 
   const answer = (async () => {
-    try {
-      const { Command } = await import("@tauri-apps/plugin-shell");
-      const res = await Command.create(row.probe.name, row.probe.args).execute();
-      if (res.code !== 0) {
-        console.warn(`ai-cli: ${row.command} ${res.code} ile çıktı — satır gizlendi.`);
+    const { Command } = await import("@tauri-apps/plugin-shell");
+    const sebepler = [];
+
+    for (const aday of adaylar) {
+      try {
+        const res = await Command.create(aday.probe, aday.probeArgs).execute();
+        if (res.code === 0) {
+          // Bundan sonrası bu adla konuşulacak: askCli de, listModels de.
+          row.resolved = aday;
+          return true;
+        }
+        sebepler.push(`${aday.probe} → çıkış ${res.code}`);
+      } catch (error) {
+        sebepler.push(`${aday.probe} → ${error}`);
       }
-      return res.code === 0;
-    } catch (error) {
-      // A hidden row explains itself somewhere, or "why is it not in the list?"
-      // has no answer at all. console.WARN, not error: a missing agent is the
-      // expected case on most machines, and the red band in index.html is for
-      // crashes (it never clears). The message names the two things that are
-      // actually wrong when the agent IS installed: the shell capability is
-      // compiled into the Rust binary, so a newly added command needs the app
-      // restarted; and the command has to be on PATH as the app sees it.
-      console.warn(
-        `ai-cli: ${row.command} yanıt vermedi — satır gizlendi. ` +
-          `Kuruluysa: yetki Rust ikilisine gömülüdür (yeni komut = uygulamayı ` +
-          `yeniden başlat), ve komut PATH'te olmalı. Sebep:`,
-        error,
-      );
-      return false;
     }
+
+    // Gizlenen satır sebebini bir yere yazmalı, yoksa "neden listede yok?"
+    // sorusunun hiçbir cevabı olmaz. console.WARN, error değil: ajanın kurulu
+    // olmaması çoğu makinede beklenen durumdur ve index.html'deki kırmızı bant
+    // çökmeler içindir, hiç temizlenmez.
+    console.warn(
+      `ai-cli: ${row.ad} yanıt vermedi, satır gizlendi. Kuruluysa iki şeye bak: ` +
+        `yetki Rust ikilisine gömülüdür (yeni komut eklendiyse uygulamayı yeniden ` +
+        `başlat), ve komut uygulamanın gördüğü PATH'te olmalı. Denenenler: ` +
+        sebepler.join(" · "),
+    );
+    return false;
   })();
 
   probed.set(row.id, answer);
   return answer;
+}
+
+/** Bu satırın şu an geçerli adı — deneme kazananı, yoksa ilk aday. */
+const activeVariant = (row) => row.resolved ?? row.variants?.[0] ?? null;
+
+/**
+ * Codex'in kullanabildiği modeller.
+ *
+ * Codex model listeleyen bir komut sunmuyor, ama kendi indirdiği listeyi
+ * `~/.codex/models_cache.json`'a yazıyor — biz de oradan okuyoruz. Elle liste
+ * tutmanın alternatifi şuydu: kullanıcının hesabında olmayan bir model adını
+ * ona seçtirmek ve 400 ile karşılaştırmak.
+ *
+ * `visibility` "list" olmayanlar elenir, sıra `priority` — Codex'in kendi
+ * sıralaması, yani varsayılan model başa gelir.
+ *
+ * Bir de AYNI MODELİN İKİ ADI var: Codex'in kod incelemesi için kullandığı
+ * satır, gerçek bir modelin görünen adını taşıyor (`codex-auto-review` →
+ * "GPT-5.6-Terra"). İkisini birden göstermek, listede aynı ada sahip iki satır
+ * demek — hangisinin ne olduğu okunamaz. Görünen ad başına tek satır bırakılır
+ * ve kendi adını söyleyen slug kazanır: `gpt-5.6-terra` "GPT-5.6-Terra"nın
+ * küçük harflisidir, `codex-auto-review` değildir.
+ *
+ * Dosya yoksa, okunamıyorsa ya da şekli değiştiyse boş döner; çağıran taraf
+ * (connectionModels) sabit listeye düşer. Bu dosya Codex'in iç yapısıdır ve
+ * bir gün değişebilir — o yüzden yedeksiz güvenilmez.
+ */
+async function codexModels() {
+  const [{ readTextFile }, { homeDir, join }] = await Promise.all([
+    import("@tauri-apps/plugin-fs"),
+    import("@tauri-apps/api/path"),
+  ]);
+
+  const path = await join(await homeDir(), ".codex", "models_cache.json");
+  const data = JSON.parse(await readTextFile(path));
+  if (!Array.isArray(data?.models)) return [];
+
+  const bySira = data.models
+    .filter((m) => m?.visibility === "list" && typeof m.slug === "string")
+    .sort((a, b) => (a.priority ?? 999) - (b.priority ?? 999));
+
+  // Map ekleme sırasını korur: sonradan gelen daha iyi slug, satırın YERİNİ
+  // değil yalnız değerini değiştirir.
+  const tek = new Map();
+  for (const m of bySira) {
+    const ad = (m.display_name ?? m.slug).toLowerCase();
+    if (!tek.has(ad) || m.slug.toLowerCase() === ad) tek.set(ad, m.slug);
+  }
+  return [...tek.values()];
 }
 
 /**
@@ -161,14 +231,12 @@ export const providers = [
     ad: "Claude Code",
     anahtarli: false,
     protokol: "cli",
-    command: "claude",
+    // Tek aday: claude gerçek bir .exe olarak kurulur.
+    variants: [{ name: "claude", probe: "claude-version", probeArgs: ["--version"] }],
     // Not local (the wire goes out) and not metered by the token: what this
     // costs comes off a subscription. The card and the warning both say so.
     abonelik: true,
     maxLength: 20000,
-    // Cheapest possible "are you there" — its own entry in the shell capability,
-    // because argument lists are matched whole.
-    probe: { name: "claude-version", args: ["--version"] },
     fixedModels: [
       "opus",
       "sonnet",
@@ -223,12 +291,10 @@ export const providers = [
     ad: "Antigravity",
     anahtarli: false,
     protokol: "cli",
-    command: "agy",
+    // agy'nin --version'ı yok; en ucuz işi model listesi ve o kayıt zaten var.
+    variants: [{ name: "agy", probe: "agy-models", probeArgs: ["models"] }],
     abonelik: true,
     maxLength: 20000,
-    // agy has no --version; its model listing is the cheapest thing it does,
-    // and the capability entry for it already exists.
-    probe: { name: "agy-models", args: ["models"] },
     // Live from `agy models`; falls back to the fixed list if the command fails.
     // The `agy-models` name maps to its own entry in cli-local.json (args differ,
     // so it needs a separate allow rule).
@@ -284,19 +350,25 @@ export const providers = [
     ad: "Codex",
     anahtarli: false,
     protokol: "cli",
-    // UZANTI ŞART. Codex npm ile kurulur, npm de Windows'ta gerçek bir .exe
-    // değil bir sarmalayıcı bırakır (codex.cmd + codex.ps1). İşletim sistemi
-    // uzantısız bir ada yalnız .exe arar; "codex" dediğimizde hiçbir şey
-    // bulunmuyor ve satır "kurulu değil" sayılıp gizleniyordu.
-    // claude ve agy'de bu sorun yok, ikisi de gerçek .exe.
-    command: "codex.cmd",
+    // İKİ ADAY, ve ikisi de gerçek kurulumlar. npm'den gelen Codex Windows'ta
+    // gerçek bir .exe bırakmaz, sarmalayıcı bırakır (codex.cmd); resmi
+    // kurucudan gelen ise düpedüz codex.exe olur. Hangisinin durduğu ancak
+    // denenerek bilinir — biri seçilip ötekine bakılmasaydı, o kurulumdaki
+    // kullanıcı hiçbir şey göremeyeceği için sorunu bildiremezdi bile.
+    variants: [
+      { name: "codex", probe: "codex-version", probeArgs: ["--version"] },
+      { name: "codex-cmd", probe: "codex-version-cmd", probeArgs: ["--version"] },
+    ],
     abonelik: true,
     maxLength: 20000,
-    probe: { name: "codex-version", args: ["--version"] },
-    // Model listesi komutu YOK. Listede yalnız çalıştığı görülen model var —
-    // "test edemediklerimizi koyma" (Zafer). Hesabın desteklemediği bir ad
-    // 400 ile döner, yani uydurulan satır kullanıcıya hata olarak çıkardı.
-    fixedModels: ["gpt-5.6-sol"],
+    // Model listesi CANLI ama komuttan değil: Codex'in model listeleme komutu
+    // yok, buna karşılık kendi indirdiği listeyi `~/.codex/models_cache.json`'a
+    // yazıyor. Elle bir liste tutmak, kullanıcının hesabında olmayan bir adı
+    // ona 400 olarak göstermek demekti; dosyayı okumak ise onun gerçekten
+    // erişebildiği modelleri veriyor. Dosya yoksa/bozuksa sabit listeye düşer
+    // (agy'deki desenin aynısı).
+    fetchModels: codexModels,
+    fixedModels: ["gpt-5.6-sol", "gpt-5.6-terra", "gpt-5.6-luna", "gpt-5.5", "gpt-5.4"],
     //
     // Bayrakların her biri bir şeyi kapatıyor ve hiçbiri süs değil:
     //   --json              çıktı ayrıştırılabilir olsun (banner + cevabın iki
