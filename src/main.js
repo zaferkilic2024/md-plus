@@ -1399,6 +1399,17 @@ async function followLink(tab, target, at = null) {
       spot: line != null,
     });
     if (backStack.length > 50) backStack.shift();
+  } else if (tab.path && tab.pdf) {
+    // A PDF leaves a page behind, not a line.
+    //
+    // This branch was missing and the arrow simply greyed out: leaving a PDF
+    // wrote nothing, so there was nowhere to come back to (Zafer, 3 Ağu). The
+    // reasoning that skipped it was half right — every anchor here is a line of
+    // text and a PDF has none — and half wrong, because a PDF does have a place
+    // you were: the page. That is what its session remembers too, and it is the
+    // only resolution the format offers.
+    backStack.push({ path: tab.path, page: tab.pdf.page ?? 1 });
+    if (backStack.length > 50) backStack.shift();
   }
   const cameFrom = tab.path;
   await openDocument(path);
@@ -1532,7 +1543,11 @@ async function goBack() {
   }
 
   const tab = activeTab();
-  if (tab && samePath(tab.path, entry.path)) {
+  if (tab && samePath(tab.path, entry.path) && entry.page && tab.pdf) {
+    // A PDF comes back to its page — a tick later, because it is the layout
+    // that knows where page 12 begins (the same wait landOn takes).
+    requestAnimationFrame(() => tab.pdf.goTo(entry.page));
+  } else if (tab && samePath(tab.path, entry.path) && tab.view) {
     // Wait for the editor to lay out before hunting for the anchor line.
     // A line you clicked comes back to the MIDDLE — that is where you were
     // looking. A top-of-window anchor comes back to the top, because that is
