@@ -1402,6 +1402,14 @@ async function followLink(tab, target, at = null) {
     arrived.backStack ??= [];
     arrived.backStack.push(leaving);
     if (arrived.backStack.length > 50) arrived.backStack.shift();
+    // AND THE ROW IS REDRAWN. `openDocument` already drew it — before this
+    // push existed — so the arrow was decided against an empty stack and then
+    // never asked again: the way back was recorded and invisible (Zafer, 3 Ağu:
+    // "rozetten hedefe gidince geri oku çıkmıyor artık"). While the stack was
+    // global this could not happen; the entry went in first and the draw came
+    // after. Moving it onto the arriving tab reversed the order, and the order
+    // was load-bearing.
+    renderTabs();
   }
 
   // A citation's link can only name a HEADING (`belge.md#bölüm`) — the thing
