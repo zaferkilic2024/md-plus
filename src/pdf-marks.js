@@ -529,6 +529,9 @@ export class PdfMarkStore {
       // "where did this passage go", not "what did I write about it". Same door,
       // same behaviour, same order as a document's (marks.js/onClick).
       if (!live && badge?.classList.contains("pdf-badge-sent")) {
+        // Not in Aktarma — the same reasoning as a document's (marks.js).
+        if (this.face === "aktarma") return;
+
         const spot = this.byId(badge.dataset.mark);
         const hedefler = movedTo(spot?.record);
         if (!hedefler.length) return;

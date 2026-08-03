@@ -2278,6 +2278,17 @@ body.dragging .body {
   left: auto;
   right: -34px;
 }
+/* In Aktarma it is a note, not a door: going to a third document is not one of
+   this screen's two jobs (KR-57). A pointer would promise otherwise — "link
+   varmış algısı yaratıyor" (Zafer) — and a control that looks live and does
+   nothing is worse than one that never offered. The hover ground goes with it:
+   it was the badge saying "reach for me". */
+.panel .cm-rozet-sent {
+  cursor: default;
+}
+.panel .cm-rozet-sent:hover {
+  background: transparent;
+}
 /* It answers when reached for, in the mark's ground — the same yellow the text
    behind it is wearing. */
 .host .cm-rozet:hover,
@@ -3711,6 +3722,14 @@ body.dragging .body {
 .pdf-badge-sent {
   left: auto;
   right: 16px;
+}
+/* Inert in Aktarma, exactly as a document's is: this screen travels and sends,
+   and opening a third document is neither (KR-57). */
+.panel .pdf-badge-sent {
+  cursor: default;
+}
+.panel .pdf-badge-sent:hover {
+  background: transparent;
 }
 .pdf-badge:hover {
   background: var(--mark);

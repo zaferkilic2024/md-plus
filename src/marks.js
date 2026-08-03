@@ -529,6 +529,17 @@ export class MarkStore {
     // piece can be moved as many times as the writer likes and the record now
     // keeps all of them.
     if (badge?.classList.contains("cm-rozet-sent")) {
+      // NOT IN AKTARMA (Zafer, 3 Ağu). The screen does two things and going to
+      // a third document is neither of them (KR-57) — and it would land in the
+      // worst possible way: opening a document activates it as a tab, under a
+      // layer that is still up, so the writer sees nothing happen while the
+      // target panel's idea of "which document am I" quietly changes.
+      //
+      // The badge stays DRAWN, because "this passage has already been sent
+      // somewhere" is worth knowing right before you send it again. It just
+      // does nothing, and says so by not wearing a pointer (style.css).
+      if (this.face === "aktarma") return;
+
       const record = this.records.find((each) => each.id === badge.dataset.mark);
       const hedefler = movedTo(record);
       if (!hedefler.length) return;
