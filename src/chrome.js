@@ -16,16 +16,20 @@ import { goster } from "./shortcuts.js";
 import { GLYPH } from "./strip.js";
 import { documentJobs, jobName, jobShortcut, provider } from "./ai.js";
 import { t } from "./i18n.js";
+import { icon, popover } from "./popover.js";
 
-const icon = (paths, size = 15) =>
-  `<svg width="${size}" height="${size}" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round">${paths}</svg>`;
+// Re-exported: callers have always asked chrome for the menu, and where it is
+// defined is not their business.
+export { popover };
+
 
 export const ICONS = {
   contents: '<path d="M4 6h16M4 12h11M4 18h7"/>',
-  // A marked passage among lines of prose: the block IS the mark. Not the
-  // note bubble (that means "comment", and a markless comment cannot exist
-  // here) and not the tapering lines (those are İçindekiler).
-  marks: '<path d="M4 5.5h16"/><rect x="4" y="9.5" width="9.5" height="5" rx="1.5"/><path d="M17 12h3"/><path d="M4 18.5h16"/>',
+  // Borrowed, not redrawn — it lives in GLYPH now, because the menu builder
+  // reads that dictionary and only that one. (A marked passage among lines of
+  // prose: the block IS the mark. Not the note bubble, which means "comment",
+  // and not the tapering lines, which are İçindekiler.)
+  marks: GLYPH.marks,
   open: '<path d="M3 8.5V18a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V9a2 2 0 0 0-2-2h-7.2L10 4.6a1.6 1.6 0 0 0-1.3-.6H5a2 2 0 0 0-2 2z"/>',
   // Borrowed, not redrawn: the magnifier on the strip and the magnifier in the
   // search box are the same idea, so they are the same path. Two dictionaries
@@ -39,134 +43,16 @@ export const ICONS = {
   settings:
     '<path d="M4 21v-7M4 10V3M12 21v-9M12 8V3M20 21v-5M20 12V3M1 14h6M9 8h6M17 16h6"/>',
   more: '<circle cx="12" cy="5" r="1.3"/><circle cx="12" cy="12" r="1.3"/><circle cx="12" cy="19" r="1.3"/>',
+  about: GLYPH.about, // borrowed: one drawing, one meaning
 };
 
 function tool(name, title, onClick) {
   const button = document.createElement("button");
   button.className = "tool";
   button.title = title;
-  button.innerHTML = icon(ICONS[name], 17);
+  button.innerHTML = icon(ICONS[name], 19);
   button.onclick = onClick;
   return button;
-}
-
-// The open popover per anchor, so a second click on the same control toggles it
-// shut instead of stacking a second menu on top of the first.
-const openMenus = new Map();
-
-/**
- * A small menu anchored under the control that opened it — never a panel across
- * the screen. Closes on the next click anywhere, and a second click on the
- * control that opened it closes it too (toggle).
- */
-export function popover(anchor, items) {
-  // Already open for this control? This click is the "close" half of the toggle.
-  const acik = openMenus.get(anchor);
-  if (acik) {
-    acik();
-    return null;
-  }
-
-  const menu = document.createElement("div");
-  menu.className = "popover";
-
-  for (const item of items) {
-    if (item === "-") {
-      menu.append(document.createElement("hr"));
-      continue;
-    }
-    // A caption over a group of rows — what the rows below are answers to
-    // ("Çevir", then the two directions). Not clickable, so not a button.
-    if (item.heading) {
-      const heading = document.createElement("div");
-      heading.className = "menu-heading";
-      heading.textContent = item.heading;
-      if (item.key) heading.append(Object.assign(document.createElement("kbd"), { textContent: item.key }));
-      menu.append(heading);
-      continue;
-    }
-    const entry = document.createElement("button");
-    // An <i>, not a <span>: the rule below that ellipsises a long file name is
-    // `.popover button > span`, and it would squeeze the glyph to nothing.
-    entry.innerHTML =
-      (item.icon ? `<i class="popover-icon">${icon(GLYPH[item.icon])}</i>` : "") +
-      `<span class="popover-label">${item.label}</span>` +
-      (item.dirty ? `<i class="popover-dot" title="${t("tab.unsaved")}"></i>` : "") +
-      (item.key ? `<kbd>${item.key}</kbd>` : "");
-    entry.disabled = Boolean(item.disabled);
-    entry.classList.toggle("current", Boolean(item.active));
-    entry.classList.toggle("muted", Boolean(item.muted));
-    entry.onclick = () => {
-      close();
-      item.run();
-    };
-
-    // An item can carry its own ✕ (the tab stack uses it: a tab scrolled out of
-    // sight has no reachable close button of its own).
-    if (!item.drop) {
-      menu.append(entry);
-      continue;
-    }
-
-    const row = document.createElement("div");
-    row.className = "popover-row";
-
-    const drop = document.createElement("button");
-    drop.className = "popover-drop";
-    drop.innerHTML = icon('<path d="M18 6L6 18M6 6l12 12"/>', 13);
-    drop.title = t("menu.close");
-    drop.onclick = (event) => {
-      event.stopPropagation();
-      close();
-      item.drop();
-    };
-
-    row.append(entry, drop);
-    menu.append(row);
-  }
-
-  function close() {
-    menu.remove();
-    openMenus.delete(anchor);
-    window.removeEventListener("mousedown", onOutside, true);
-    window.removeEventListener("keydown", onEscape, true);
-  }
-  function onOutside(event) {
-    // Ignore the anchor itself: its own click toggles the menu shut. Without
-    // this, the mousedown closed it and the click immediately reopened it.
-    if (menu.contains(event.target) || anchor.contains(event.target)) return;
-    close();
-  }
-  function onEscape(event) {
-    if (event.key === "Escape") close();
-  }
-
-  // Callers that dismiss the menu on their own (the outline navigates and goes)
-  // use this, so the toggle bookkeeping stays correct.
-  menu.close = close;
-  openMenus.set(anchor, close);
-
-  // Position AFTER appending, and from the menu's measured width — not from a
-  // number typed in by hand. The clamp used to be `innerWidth - 240`, written
-  // when the menu was about that wide; the box later grew to 300 and the number
-  // stayed behind, so a menu opened near the right edge (the tab stack lives at
-  // the far right, exactly where this bites) hung 60px off the window and took
-  // each row's ✕ with it. Measure the thing you are placing.
-  document.body.append(menu);
-
-  const box = anchor.getBoundingClientRect();
-  const width = menu.offsetWidth;
-  const EDGE = 6;
-  menu.style.top = `${box.bottom + 4}px`;
-  menu.style.left = `${Math.max(EDGE, Math.min(box.left, window.innerWidth - width - EDGE))}px`;
-
-  // Not on this click — the one that opened it.
-  setTimeout(() => {
-    window.addEventListener("mousedown", onOutside, true);
-    window.addEventListener("keydown", onEscape, true);
-  });
-
-  return menu;
 }
 
 /**
@@ -259,7 +145,13 @@ function outlineOf(text) {
   return headings;
 }
 
-export function createChrome({ onCommand, activeTab, onSearch, onBack }) {
+/**
+ * `withBack: false` builds the same left-hand group without the way back — for
+ * Aktarma's target panel, which has İçindekiler and İşaretler of its own (there
+ * is a document in it) but no journey to return from. Everything else about the
+ * group is identical, because it is the same group.
+ */
+export function createChrome({ onCommand, activeTab, onBack, withBack = true }) {
   const left = document.createElement("div");
   left.className = "strip-left";
 
@@ -274,14 +166,88 @@ export function createChrome({ onCommand, activeTab, onSearch, onBack }) {
   // and İşaretler, for the same reason, and this is the third case of it.
   const back = tool("back", t("menu.back"), () => onBack());
   back.disabled = true;
-  left.append(back);
+  if (withBack) left.append(back);
 
   const contents = tool("contents", t("menu.contents"), () => {
     const tab = activeTab();
-    // A PDF has an outline of its own kind and this is not it (Faz 2). The tool
-    // is already greyed for it; this is the door staying shut.
-    if (!tab?.view) return;
+    if (!tab) return;
 
+    // A PDF answers the same question with what it has: its own outline where
+    // the file carries one, its pages where it does not. One icon, one question
+    // — "what is in here, take me there" — and two kinds of answer, because the
+    // two kinds of document are structured differently, not because they are
+    // two different tools (2 Ağu, Zafer).
+    if (tab.kind === "pdf") {
+      if (!tab.pdf) return;
+      const rows = tab.pdf.contents();
+      const menu = popover(contents, []);
+      if (!menu) return;
+      menu.classList.add("outline");
+
+      // With no outline of its own the list is the pages themselves, and a
+      // column of "Sayfa 1 · Sayfa 2" is a list of numbers, not of contents
+      // (Zafer, 2 Ağu: "güdük oldu"). So each row carries the page, small.
+      // Rendered only as it comes into view — a 400-page book would otherwise
+      // draw 400 pictures to answer one question.
+      const pictures = !rows[0]?.title;
+      const watcher = pictures
+        ? new IntersectionObserver(
+            (entries, self) => {
+              for (const seen of entries) {
+                if (!seen.isIntersecting) continue;
+                self.unobserve(seen.target);
+                const page = Number(seen.target.dataset.page);
+                tab.pdf.thumbnail(page).then((canvas) => {
+                  if (canvas) seen.target.querySelector(".page-shot")?.replaceChildren(canvas);
+                });
+              }
+            },
+            { root: menu, rootMargin: "120px" },
+          )
+        : null;
+
+      for (const row of rows) {
+        const entry = document.createElement("button");
+        entry.className = pictures ? "outline-page" : `outline-${row.level}`;
+        entry.dataset.page = String(row.page);
+        if (pictures) {
+          const shot = document.createElement("div");
+          shot.className = "page-shot";
+          const label = document.createElement("span");
+          label.textContent = t("menu.pdfPage", { n: row.page });
+          entry.append(shot, label);
+        } else {
+          entry.textContent = row.title;
+        }
+        entry.onclick = () => {
+          // The place, not just the page: an outline entry points at a heading
+          // partway down its page, and stopping at the top of that page reads as
+          // the contents having taken you somewhere else.
+          tab.pdf.goTo(row.page, { y: row.y });
+          menu.close();
+        };
+        menu.append(entry);
+        watcher?.observe(entry);
+      }
+
+      // Open ON where the reader is. A contents list that always starts at page
+      // one asks them to find themselves in it first — and in a 400-page book
+      // that is a scroll, not a glance. With an outline it is the last entry at
+      // or before this page: the section you are inside, not the next one down.
+      const here = tab.pdf.page;
+      let mark = null;
+      for (const entry of menu.querySelectorAll("[data-page]")) {
+        if (Number(entry.dataset.page) <= here) mark = entry;
+        else break;
+      }
+      mark?.classList.add("current");
+      // After the menu is placed, or the scroll happens in a box that is not
+      // where it will end up.
+      requestAnimationFrame(() => mark?.scrollIntoView({ block: "center" }));
+      return;
+    }
+
+    if (!tab.view) return;
     const headings = outlineOf(tab.view.state.doc.toString());
     const menu = popover(contents, []);
     if (!menu) return; // a second click on İçindekiler toggled it shut
@@ -376,6 +342,12 @@ export function createChrome({ onCommand, activeTab, onSearch, onBack }) {
       cost the decoration plugins already pay on docChanged. */
   const updateContentsTool = () => {
     const tab = activeTab();
+    // A PDF always has something to list — at worst its pages — so the tool is
+    // live the moment one is open.
+    if (tab?.kind === "pdf") {
+      contents.disabled = !tab.pdf;
+      return;
+    }
     contents.disabled = !tab?.view || outlineOf(tab.view.state.doc.toString()).length === 0;
   };
 
@@ -383,27 +355,20 @@ export function createChrome({ onCommand, activeTab, onSearch, onBack }) {
     back.disabled = !can;
   };
 
-  // The document-acting tools, hidden on the opening screen where there is no
-  // document under them. İçindekiler and the marks list are on the left; search
-  // and ⋯ on the right (built below). Ayarlar is NOT among them — it acts on the
-  // app and outlives every document. The marks list is not hidden here either:
-  // it stays put and only greys (updateMarksTool), and the whole strip is gone
-  // on the opening screen anyway.
-  const setHasDocument = (has) => {
-    contents.hidden = !has;
-    search.hidden = !has;
-    more.hidden = !has;
-  };
+  // Kept for the language rebuild, but the opening screen no longer needs it:
+  // the document row is removed whole when there is no document (main.js), so
+  // there is nothing left to hide one icon at a time.
+  const setHasDocument = () => {};
 
-  // The far right of the strip: nothing here has any business with the tabs,
-  // which is why it sits on the other side of the second separator. "Belge aç"
-  // is no longer among them — it makes tabs, so it moved to the strip's tail.
+  // The right-hand end of the DOCUMENT row. Everything here acts on the
+  // document in front of you; settings left this group entirely (below), for
+  // the row above — the one that belongs to the app.
   const right = document.createElement("div");
   right.className = "strip-right";
 
-  // Ctrl+F used to be the only way in. An action reachable only by knowing its
-  // shortcut is an action most people do not have.
-  const search = tool("search", t("menu.search"), onSearch);
+  // No search icon here any more: the box itself stands in this row (search.js),
+  // which is the shorter way of saying the same thing — you do not click to be
+  // given a place to type, you type.
 
   // Settings belong to the app, not to a document — so they are not hidden in
   // the ⋯ menu, which is entirely about the document you are standing in.
@@ -485,8 +450,31 @@ export function createChrome({ onCommand, activeTab, onSearch, onBack }) {
     ]);
   });
 
-  right.append(search, more, settings);
-  return { left, right, updateMarksTool, updateContentsTool, setCanGoBack, setHasDocument };
+  right.append(more);
+
+  // Settings belongs to the app, so it rides in the app's row — beside the
+  // window's own controls, above the tabs. It is the one icon that means the
+  // same thing with no document open, which is exactly why it cannot live in a
+  // row that disappears with the document.
+  // The app's page rides beside the app's MARK, at the far left — not beside
+  // Settings, where the two of them crowded each other and the window controls.
+  // main.js puts it there; this only builds it.
+  const about = tool("about", t("home.title"), () => onCommand("home"));
+
+  const appTools = document.createElement("div");
+  appTools.className = "app-tools";
+  appTools.append(settings);
+
+  return {
+    left,
+    right,
+    appTools,
+    about,
+    updateMarksTool,
+    updateContentsTool,
+    setCanGoBack,
+    setHasDocument,
+  };
 }
 
 /**

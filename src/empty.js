@@ -20,7 +20,13 @@ import { t } from "./i18n.js";
 const svg = (paths, size = 19) =>
   `<svg width="${size}" height="${size}" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.55" stroke-linecap="round" stroke-linejoin="round">${paths}</svg>`;
 
-export function createEmptyState({ onOpen, onNew, recents }) {
+/**
+ * `ways: false` draws the head of the screen and nothing else — the mark, the
+ * promise, the line under it. The two ways in, the drag hint and the four cards
+ * are what an EMPTY window needs; on the about page they would be a second copy
+ * of a screen the reader has already been given (Zafer, 2 Ağu).
+ */
+export function createEmptyState({ onOpen, onNew, recents, ways = true }) {
   const empty = document.createElement("div");
   empty.className = "empty";
   empty.innerHTML = `
@@ -29,7 +35,7 @@ export function createEmptyState({ onOpen, onNew, recents }) {
       <h2>${t("empty.title")}</h2>
       <p class="spot">${t("empty.spot")}</p>
 
-      <div class="girisler">
+      <div class="girisler"${ways ? "" : " hidden"}>
         <div class="giris" data-act="new">
           ${svg('<path d="M12 5v14M5 12h14"/>', 17)}
           <span class="et">${t("empty.new")}</span>
@@ -40,7 +46,7 @@ export function createEmptyState({ onOpen, onNew, recents }) {
           <span class="et">${t("empty.open")}</span>
         </div>
       </div>
-      <p class="empty-hint">${t("empty.hintPre")}<code>.md</code>${t("empty.hintPost")}</p>
+      <p class="empty-hint"${ways ? "" : " hidden"}>${t("empty.hintPre")}<code>.md</code>${t("empty.hintPost")}</p>
     </div>`;
 
   const ic = empty.querySelector(".ic");
@@ -49,7 +55,10 @@ export function createEmptyState({ onOpen, onNew, recents }) {
   // shown once — this whole screen is a first-and-only-time thing (Zafer, 18
   // Tem). The moment there is a history, the returning writer gets their own
   // shelf INSTEAD of the cards: their documents matter more than the pitch.
-  if (recents) {
+  if (!ways) {
+    // Nothing below the promise: the page that called for this has its own
+    // things to say, and they move up into the space.
+  } else if (recents) {
     ic.append(recents);
   } else {
     ic.insertAdjacentHTML(
@@ -75,8 +84,10 @@ export function createEmptyState({ onOpen, onNew, recents }) {
     );
   }
 
-  empty.querySelector('[data-act="new"]').onclick = onNew;
-  empty.querySelector('[data-act="open"]').onclick = onOpen;
+  if (ways) {
+    empty.querySelector('[data-act="new"]').onclick = onNew;
+    empty.querySelector('[data-act="open"]').onclick = onOpen;
+  }
   return empty;
 }
 

@@ -24,6 +24,10 @@ export const tr = {
   "dialog.documents": "Belgeler",
 
   // ---- sekme şeridi (main.js) ----
+  "window.minimize": "Küçült",
+  "window.maximize": "Büyüt",
+  "window.restore": "Önceki boyut",
+  "window.close": "Kapat",
   "tab.unsaved": "kaydedilmemiş",
   "tab.untitled": "Adsız",
   "tab.newTitle": "Yeni belge · Ctrl+N",
@@ -67,6 +71,7 @@ export const tr = {
   // ---- şerit ikonları / menü (chrome.js) ----
   "menu.close": "Kapat",
   "menu.contents": "İçindekiler",
+  "menu.pdfPage": "Sayfa {n}",
   "menu.noHeadings": "Başlık yok",
   "menu.marks": "İşaretler · F8",
   "menu.back": "Geri · Alt+←",
@@ -84,6 +89,18 @@ export const tr = {
   "menu.copy": "Kopyala",
 
   // ---- karşılama ekranı (empty.js) ----
+  "home.title": "MD Plus hakkında",
+  "home.canTitle": "Neler yapabilir?",
+  "home.can1": "Kalın yazınca kalın görürsünüz. Yıldızlar, tireler yalnız üstünde çalıştığınız satırda belirir; gerisi temiz bir sayfadır.",
+  "home.can2": "Bir makaleyi açın, içinde arayın, işinize yarayan paragrafı notlarınıza geçirin. PDF'e tek harf yazılmaz; dosyanız aldığınız gibi kalır.",
+  "home.can3": "Okurken önemli yerleri işaretleyin, kenarına not düşün. Bunlar belgenizin içine karışmaz: dosyanızı başka bir programda açtığınızda yalnız yazdıklarınız durur.",
+  "home.can4": "Solda okursunuz, sağda yazarsınız. Beğendiğiniz pasajı karşıya geçirin; nereden geldiğini söyleyen küçük bir not kendiliğinden düşer.",
+  "home.can5": "İsterseniz bir yapay zekâ bağlarsınız. İstemezseniz uygulama hiçbir yere bağlanmaz, hiçbir şey göndermez. Kalem her hâlükârda sizde.",
+  "home.back": "Geri dön",
+  "home.openSource": "MD Plus açık kaynaklıdır. Kaynak kodu, sorunlar ve lisansı GitHub'da.",
+  "home.repo": "Kaynak kod",
+  "home.issues": "Sorun bildir",
+  "home.license": "Lisans",
   "empty.title": "Yazın, okuyun, düzenleyin. Hepsi tek pencerede.",
   "empty.spot": "Markdown'ın gücü, işaretlerin ötesinde. Sadece içeriğe odaklanın.",
   "empty.new": "Yeni belge",
@@ -123,7 +140,18 @@ export const tr = {
   "palette.aiTitle": "Yapay zekâ önerileri",
 
   // ---- arama / bul-değiştir (search.js) ----
+  "doc.zoomOut": "Uzaklaştır · Ctrl+-",
+  "doc.zoomIn": "Yakınlaştır · Ctrl++",
+  "doc.pageUp": "Önceki sayfa · PageUp",
+  "doc.pageDown": "Sonraki sayfa · PageDown",
+  "doc.fit": "Genişliğe yay · pencere kadar",
+  "doc.fitBack": "%100'e dön",
+  "doc.goToPage": "Sayfaya git",
+  "doc.toTop": "Başa dön",
   "search.placeholder": "Belgede ara…",
+  "search.placeholderMarks": "İşaretlerde ara…",
+  "search.scopeText": "Metinde ara",
+  "search.scopeMarks": "İşaretlerde ara",
   "search.prev": "Önceki (Shift+Enter)",
   "search.next": "Sonraki (Enter)",
   "search.close": "Kapat (Esc)",
@@ -142,6 +170,7 @@ export const tr = {
   "strip.move": "Taşı",
   "strip.comment": "Yorumla",
   "strip.commentPlaceholder": "Yorum…",
+  "strip.cancel": "Vazgeç — yazdıklarınız atılır",
   "strip.done": "Tamam (Esc)",
 
   // ---- Aktarma (transfer.js) ----

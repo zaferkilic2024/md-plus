@@ -15,10 +15,29 @@
        writing, in an app where red means something is being deleted. Spelling is
        a job we already have, and it is the writer's to ask for (Alt+Y). -->
   <body spellcheck="false">
+    <!-- Two rows, and the top one IS the window's title bar (decorations:false).
+         The first row belongs to the app — brand, tabs, settings, the window's
+         own three controls. The second belongs to the document open in front of
+         you, which is why it is paper-coloured and why it is absent when there
+         is no document. -->
     <div id="shell">
-      <div id="tabs" class="tabs"></div>
+      <div id="window-row" class="window-row"></div>
+      <div id="doc-row" class="doc-row" hidden></div>
       <div id="body" class="body"></div>
       <div id="status" class="status"></div>
+    </div>
+    <!-- Undecorated windows lose the frame you grab to resize. These eight
+         invisible strips give it back; each one asks Tauri to take over the
+         drag (startResizeDragging), so the OS does the actual resizing. -->
+    <div class="resize-edges">
+      <div data-resize="North"></div>
+      <div data-resize="South"></div>
+      <div data-resize="East"></div>
+      <div data-resize="West"></div>
+      <div data-resize="NorthWest"></div>
+      <div data-resize="NorthEast"></div>
+      <div data-resize="SouthWest"></div>
+      <div data-resize="SouthEast"></div>
     </div>
     <script>
       // Dev aid: no console is reachable here, so errors are painted on top.

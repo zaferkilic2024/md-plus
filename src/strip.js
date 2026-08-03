@@ -44,7 +44,26 @@ export const GLYPH = {
   // Aktarma (transfer.js) and back along a followed link (chrome.js, 18 Tem).
   back: '<path d="M21 12H3"/><path d="M10.5 4.5L3 12l7.5 7.5"/>',
   search: '<circle cx="11" cy="11" r="7"/><path d="M20 20l-4.3-4.3"/>',
+  // A marked passage among lines of prose: the block IS the mark. It was drawn
+  // in chrome.js's own ICONS, which is fine for the strip and wrong for
+  // everyone else — popover looks the name up in GLYPH, so "işaretlerde ara"
+  // came out with no icon at all. One dictionary (this one); chrome re-exports.
+  marks: '<path d="M4 5.5h16"/><rect x="4" y="9.5" width="9.5" height="5" rx="1.5"/><path d="M17 12h3"/><path d="M4 18.5h16"/>',
   chevron: '<path d="M6 9l6 6 6-6"/>',
+  // The app's own page: what it is, what it can do, where its source is.
+  //
+  // NOT a house. Every creative-suite launcher on this desktop wears one, and
+  // beside our own icon it would read as somebody else's home button (Zafer,
+  // 2 Ağu). What the page actually does is answer questions about the app, so
+  // it wears the drawing that means exactly that and nothing else here.
+  about: '<circle cx="12" cy="12" r="9"/><path d="M12 11v5.5"/><path d="M12 7.6h.01"/>',
+  // Source code: the two brackets every developer reads without being told.
+  code: '<path d="M9 6.5L3.5 12 9 17.5M15 6.5L20.5 12 15 17.5"/>',
+  // An issue: the note bubble with a question in it — not the warning triangle,
+  // which is this app's one warning and means something else entirely (KR-53).
+  issue: '<path d="M12 3.5c-4.7 0-8.5 3.1-8.5 7 0 2.2 1.2 4.2 3.1 5.4-.1 1.5-.8 2.9-2 4 2-.2 3.9-1 5.4-2.2.6.1 1.3.2 2 .2 4.7 0 8.5-3.1 8.5-7s-3.8-7.4-8.5-7.4z"/><path d="M12 8.6v3.2"/><path d="M12 14.4h.01"/>',
+  // A licence: a page with a seal on it.
+  license: '<path d="M6 3.5h8l4 4v7"/><path d="M6 3.5v17h6"/><circle cx="17" cy="17.5" r="3"/><path d="M15.4 20l-.4 3 2-1 2 1-.4-3"/>',
   // The app's one warning (KR-53). Nowhere else — if a second thing ever wants
   // this triangle, the answer is that there is only one warning.
   warn: '<path d="M12 4.2L2.6 20h18.8z"/><path d="M12 10v4.2"/><path d="M12 17.4h.01"/>',
@@ -309,7 +328,11 @@ export class Strip {
 
     const field = document.createElement("textarea");
     field.placeholder = t("strip.commentPlaceholder");
-    field.value = mark.yorum?.metin ?? "";
+    // What was there when the box opened — what "vazgeç" puts back. The comment
+    // saves itself as you type, so giving up is not "don't save": it is undoing
+    // what has already been saved, and that needs the old text in hand.
+    const before = mark.yorum?.metin ?? "";
+    field.value = before;
     field.rows = 3;
 
     // The comment saves itself, like the document does. A "Kaydet" button here
@@ -331,10 +354,24 @@ export class Strip {
       }
     };
 
+    // Giving up has to disarm both of the things that save on their own — the
+    // 600ms timer and the blur — or the box would write the very text it was
+    // just told to throw away, on its way out.
+    const cancel = () => {
+      clearTimeout(timer);
+      field.onblur = null;
+      if (field.value.trim() !== before) on.comment(before);
+      this.hide();
+    };
+
     const actions = document.createElement("div");
     actions.className = "note-row";
     actions.append(
       spacer(),
+      // ✕ first, ✓ last: the hand travels to where it is going to commit, and
+      // the same ✕ that closes a card and rejects a suggestion (one gesture,
+      // one glyph) is the one that gives up here.
+      iconAction("close", t("strip.cancel"), cancel),
       iconAction("check", t("strip.done"), () => {
         commit();
         this.hide();

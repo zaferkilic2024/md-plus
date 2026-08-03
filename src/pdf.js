@@ -201,6 +201,72 @@ function indexPage(slot) {
   slot.pageText = text;
 }
 
+/**
+ * The document's outline, flattened to rows of `{ title, level, page }`.
+ *
+ * Every entry has to be resolved to a page number, and that is the fiddly part:
+ * a destination is either an array whose first element is a page reference, or
+ * a NAME that has to be looked up first. Anything that will not resolve is
+ * dropped rather than guessed — a contents row that goes to the wrong page is
+ * worse than one that is not there.
+ *
+ * Depth is capped at three: below that the list stops being a map and becomes
+ * the document again.
+ */
+async function readOutline(doc) {
+  let tree;
+  try {
+    tree = await doc.getOutline();
+  } catch {
+    return [];
+  }
+  if (!tree?.length) return [];
+
+  const rows = [];
+  const walk = async (items, level) => {
+    for (const item of items) {
+      const spot = await pageOfDest(doc, item.dest);
+      if (spot) rows.push({ title: item.title.trim(), level, page: spot.page, y: spot.y });
+      if (item.items?.length && level < 3) await walk(item.items, level + 1);
+    }
+  };
+  await walk(tree, 1);
+  return rows;
+}
+
+/**
+ * A destination, as `{ page, y }`.
+ *
+ * Two things had to be got right and only one of them was. The page reference
+ * is usually an object, but some files write the page INDEX there instead, and
+ * getPageIndex throws on a number — those rows were being dropped.
+ *
+ * And a destination is not a page: it is a place ON a page. A heading two
+ * thirds down its page was landing at the top of that page, which reads as
+ * "the contents took me to the wrong place". The y is in PDF coordinates —
+ * measured from the BOTTOM — and which slot of the array holds it depends on
+ * the destination's kind (XYZ carries x,y,zoom; FitH and FitBH carry y alone).
+ */
+async function pageOfDest(doc, dest) {
+  try {
+    const target = typeof dest === "string" ? await doc.getDestination(dest) : dest;
+    if (!Array.isArray(target) || !target.length) return null;
+
+    const ref = target[0];
+    const page =
+      typeof ref === "number" ? ref + 1 : (await doc.getPageIndex(ref)) + 1;
+
+    const kind = target[1]?.name;
+    let y = null;
+    if (kind === "XYZ") y = typeof target[3] === "number" ? target[3] : null;
+    else if (kind === "FitH" || kind === "FitBH") y = typeof target[2] === "number" ? target[2] : null;
+
+    return { page, y };
+  } catch {
+    return null;
+  }
+}
+
 /** A DOM range over [from, to) of a page's text — for painting and for reading. */
 function rangeOf(slot, from, to) {
   const first = slot.map.find((each) => each.to > from);
@@ -257,6 +323,14 @@ export async function createPdfSurface({ parent, data, onPage, onPaint, onZoom }
   const baseRatio = first.getViewport({ scale: 1 }).height / first.getViewport({ scale: 1 }).width;
   const baseWidth = first.getViewport({ scale: 1 }).width;
 
+  // The document's own contents, resolved once at open.
+  //
+  // A .md's İçindekiler is read off its headings; a PDF carries its own tree,
+  // and where it does not, its pages ARE its structure. Resolved here rather
+  // than when the menu opens, because a destination is an async round trip
+  // through the worker and a menu cannot wait.
+  const outlineRows = await readOutline(doc);
+
   /** @type {Slot[]} */
   const slots = [];
   for (let n = 1; n <= doc.numPages; n++) {
@@ -267,10 +341,13 @@ export async function createPdfSurface({ parent, data, onPage, onPaint, onZoom }
     label.textContent = String(n);
     el.append(label);
     dom.append(el);
-    slots.push({ n, el, page: null, text: null, marks: null, map: null, pageText: null, drawn: false, task: null, width: baseWidth, ratio: baseRatio });
+    slots.push({ n, el, page: null, text: null, marks: null, hits: null, map: null, pageText: null, searchText: null, drawn: false, task: null, width: baseWidth, ratio: baseRatio });
   }
 
   let zoom = 1;
+  // Whether the reader asked for the whole page. Any other zoom gesture clears
+  // it: the control must not offer to "restore" a size the reader has left.
+  let fitted = false;
   let fitScale = 1;
   let destroyed = false;
   let visible = 1;
@@ -309,6 +386,25 @@ export async function createPdfSurface({ parent, data, onPage, onPaint, onZoom }
   }
 
   const scaleOf = (slot) => (fitScale * zoom * baseWidth) / slot.width;
+
+  /** Puts a 1-based page at the top of the view — the one place that decides
+      what "being on a page" means, so the counter and the saved place agree. */
+  function goToPage(n, { y = null } = {}) {
+    const slot = slots.find((each) => each.n === n);
+    if (!slot) return;
+    let top = slot.el.offsetTop - PAGE_GUTTER;
+    if (y != null) {
+      const heightPt = slot.width * slot.ratio;
+      // A little above it, so the heading is not welded to the top edge.
+      top += Math.max(0, (heightPt - y) * scaleOf(slot) - 10);
+    }
+    dom.scrollTop = top;
+    // Noted AT ONCE, not left to the scroll event: a restore that comes later in
+    // the same breath asks `place`, and a stale one would pull the reader back
+    // off the page they were just sent to.
+    refresh();
+    notePlace();
+  }
 
   /** Sizes a page's box without drawing it — placeholders and zoom both need it. */
   function layout(slot) {
@@ -486,7 +582,14 @@ export async function createPdfSurface({ parent, data, onPage, onPaint, onZoom }
       marks.className = "pdf-marks";
       slot.marks = marks;
 
-      slot.el.replaceChildren(canvas, marks, text, pageNumber(slot.n));
+      // Search hits get a layer of their own rather than sharing the marks'.
+      // paintPage clears its layer on every repaint, and a hit painted into it
+      // would blink out the next time a mark moved — two lifetimes, two layers.
+      const hits = document.createElement("div");
+      hits.className = "pdf-hits";
+      slot.hits = hits;
+
+      slot.el.replaceChildren(canvas, marks, hits, text, pageNumber(slot.n));
       onPaint?.(slot.n);
     } catch (error) {
       if (stale()) return; // cancelled on purpose (clear): not a failure
@@ -522,6 +625,7 @@ export async function createPdfSurface({ parent, data, onPage, onPaint, onZoom }
     if (slot.text) forgetTextLayer(slot.text);
     slot.text = null;
     slot.marks = null;
+    slot.hits = null;
     slot.map = null;
     slot.pageText = null;
     slot.el.replaceChildren(pageNumber(slot.n));
@@ -620,6 +724,7 @@ export async function createPdfSurface({ parent, data, onPage, onPaint, onZoom }
    * of the two directions a no-op.
    */
   function zoomStep(direction) {
+    fitted = false;
     let nearest = 0;
     for (let i = 1; i < ZOOM_STEPS.length; i++) {
       if (Math.abs(ZOOM_STEPS[i] - zoom) < Math.abs(ZOOM_STEPS[nearest] - zoom)) nearest = i;
@@ -639,12 +744,31 @@ export async function createPdfSurface({ parent, data, onPage, onPaint, onZoom }
 
   // Ctrl+wheel is the zoom gesture everywhere else; the app should not be the
   // one place it means something different.
+  // The wheel turns pages while a page is being held whole, and scrolls
+  // otherwise. Held whole, the document is a deck: a wheel that inches a
+  // fully-fitted slide by forty pixels moves nothing anyone wanted moved, and it
+  // disagreed with ↑ ↓, which were already turning pages (Zafer, 2 Ağu).
+  //
+  // Throttled, because one flick of a wheel is many events and a trackpad is a
+  // stream of them: without the lock a single gesture would fly through five
+  // slides. The threshold ignores the tail of an inertial scroll.
+  let turnLock = 0;
   dom.addEventListener(
     "wheel",
     (event) => {
-      if (!event.ctrlKey) return;
+      if (event.ctrlKey) {
+        event.preventDefault();
+        zoomStep(event.deltaY < 0 ? 1 : -1);
+        return;
+      }
+      if (!fitted) return;
+
       event.preventDefault();
-      zoomStep(event.deltaY < 0 ? 1 : -1);
+      if (Math.abs(event.deltaY) < 4) return;
+      const now = Date.now();
+      if (now < turnLock) return;
+      turnLock = now + 320;
+      goToPage(Math.min(Math.max(1, visible + (event.deltaY > 0 ? 1 : -1)), doc.numPages));
     },
     { passive: false },
   );
@@ -739,19 +863,60 @@ export async function createPdfSurface({ parent, data, onPage, onPaint, onZoom }
       restorePlace: restoreView,
       zoomIn: () => zoomStep(1),
       zoomOut: () => zoomStep(-1),
-      zoomReset: () => rezoom(1),
-      /** Scrolls to a 1-based page. */
-      goTo(n) {
-        const slot = slots.find((each) => each.n === n);
-        if (!slot) return;
-        dom.scrollTop = slot.el.offsetTop - PAGE_GUTTER;
-        // Noted AT ONCE, not left to the scroll event: a restore that comes
-        // later in the same breath (the tab being shown, a resize) asks `place`,
-        // and a stale one would pull the reader back off the page they were
-        // just sent to. Every door that moves the view says where it went.
-        refresh();
-        notePlace();
+      zoomReset: () => {
+        fitted = false;
+        rezoom(1);
       },
+
+      /** Whether the whole page is currently on screen — what the fit control
+          reads to know which half of the toggle it is showing. */
+      get fitted() {
+        return fitted;
+      },
+
+      /**
+       * The page at the largest size this window can show it WHOLE, and back
+       * again.
+       *
+       * Both directions, not just width. A slide deck is landscape: filled to
+       * the width it runs off the bottom, and a slide with its last line cut off
+       * is not a slide (Zafer, 2 Ağu — Archaeology_of_Meaning.pdf). Whichever
+       * side runs out first decides, so an A4 shrinks to fit and a slide grows
+       * to fill; both end up entirely on screen, as large as they can be.
+       *
+       * Measured from what is on screen rather than recomputed from the
+       * viewport: the page's box already knows how big it is at this zoom, so
+       * the ratio between that and the window is the factor, whatever the paper.
+       */
+      fitToScreen() {
+        if (fitted) {
+          fitted = false;
+          rezoom(1);
+          return;
+        }
+        const slot = slots.find((each) => each.n === visible) ?? slots[0];
+        if (!slot) return;
+        // The gutter on every side: a page pushed to the very edge makes the
+        // window scroll to show a margin that is not there.
+        const roomWidth = dom.clientWidth - PAGE_GUTTER * 2;
+        const roomHeight = dom.clientHeight - PAGE_GUTTER * 2;
+        const nowWidth = slot.width * scaleOf(slot);
+        const nowHeight = nowWidth * slot.ratio;
+        if (!nowWidth || !nowHeight || roomWidth <= 0 || roomHeight <= 0) return;
+        const before = zoom;
+        rezoom(zoom * Math.min(roomWidth / nowWidth, roomHeight / nowHeight));
+        // Only claim it if the zoom could actually go there (the ladder has
+        // ends): otherwise the next press would "restore" a size never left.
+        fitted = zoom !== before;
+        // Land on the page that was being read, not wherever the reflow left us.
+        goToPage(slot.n);
+      },
+      /**
+       * Scrolls to a 1-based page — and, if the caller knows one, to a place on
+       * it (`y`, in PDF coordinates, measured from the bottom of the page). The
+       * contents of a PDF point at places, not at pages.
+       */
+      goTo: goToPage,
 
       /**
        * Scrolls to a page AND waits until it is drawn — the door for anything
@@ -823,9 +988,119 @@ export async function createPdfSurface({ parent, data, onPage, onPaint, onZoom }
         }
         return parts;
       },
+      /**
+       * The rows İçindekiler shows for this document: its own outline where it
+       * has one, its pages where it does not. Both answer the same question —
+       * "what is in here, and take me there" — which is why they come out of one
+       * door and land in one menu.
+       */
+      contents() {
+        if (outlineRows.length) return outlineRows;
+        return Array.from({ length: doc.numPages }, (_, index) => ({
+          title: null, // named by the caller, in the reader's language
+          level: 1,
+          page: index + 1,
+        }));
+      },
+
+      /**
+       * A page as a small picture, for the contents menu. Cached on the slot and
+       * NOT thrown away with the drawn page: a thumbnail is a few kilobytes, and
+       * re-rendering one every time the menu opens would make the list stutter.
+       *
+       * Drawn on its own canvas, so it never touches the page being read.
+       */
+      async thumbnail(n, height = 90) {
+        const slot = slots.find((each) => each.n === n);
+        if (!slot) return null;
+        if (slot.thumb) return slot.thumb;
+
+        slot.page ??= await doc.getPage(n);
+        if (destroyed) return null;
+        // Sized by HEIGHT, not width: the rows line up on a single height and
+        // each page is as wide as it actually is, so no page floats inside a
+        // frame with grey to the left and right of it.
+        const base = slot.page.getViewport({ scale: 1 });
+        const viewport = slot.page.getViewport({ scale: height / base.height });
+        // Supersampled ×3 over the device's own resolution, capped at six times
+        // life size. A 46-pixel-wide page is mostly 4pt type: at 1:1 the strokes
+        // fall between pixels whatever the screen, and each doubling of the
+        // drawing buys back some of that. The cap is where it stops paying —
+        // and where the canvases stop being a few kilobytes each.
+        const dpr = Math.min((window.devicePixelRatio || 1) * 3, 6);
+        const canvas = document.createElement("canvas");
+        canvas.width = Math.ceil(viewport.width * dpr);
+        canvas.height = Math.ceil(viewport.height * dpr);
+        canvas.style.width = `${Math.round(viewport.width)}px`;
+        canvas.style.height = `${Math.round(viewport.height)}px`;
+        await slot.page.render({
+          canvasContext: canvas.getContext("2d", { alpha: false }),
+          viewport,
+          transform: dpr === 1 ? null : [dpr, 0, 0, dpr, 0, 0],
+        }).promise;
+        if (destroyed) return null;
+        slot.thumb = canvas;
+        return canvas;
+      },
+
       /** The text of a page, once it has been drawn — what an anchor binds to. */
       textOfPage(n) {
         return slots.find((slot) => slot.n === n)?.pageText ?? null;
+      },
+
+      /**
+       * A page's text WHETHER OR NOT it is drawn — what searching the document
+       * needs. `textOfPage` can only answer for pages on screen, and the whole
+       * point of a search is to find what is not on screen (B-32's lesson, in
+       * its second form: "not in the list" and "not on screen" are not the same
+       * thing).
+       *
+       * The undrawn answer is built the same way the drawn one is: the same
+       * reading-order sort, the same skipping of empty pieces, so an offset
+       * found here is the offset the page will have once it IS drawn. Cached —
+       * a search re-runs on every keystroke and this crosses the worker.
+       */
+      async textForSearch(n) {
+        const slot = slots.find((each) => each.n === n);
+        if (!slot) return "";
+        if (slot.pageText) return slot.pageText;
+        if (slot.searchText != null) return slot.searchText;
+        slot.page ??= await doc.getPage(n);
+        if (destroyed) return "";
+        const content = await slot.page.getTextContent();
+        slot.searchText = readingOrder(content.items)
+          .map((item) => item.str ?? "")
+          .filter(Boolean)
+          .join("");
+        return slot.searchText;
+      },
+
+      /** Paints one page's hits. Same geometry as the marks, its own layer. */
+      paintHits(n, ranges) {
+        const slot = slots.find((each) => each.n === n);
+        if (!slot?.hits || !slot.map) return;
+        slot.hits.replaceChildren();
+        const page = slot.el.getBoundingClientRect();
+
+        for (const one of ranges) {
+          const range = rangeOf(slot, one.from, one.to);
+          if (!range) continue;
+          for (const box of range.getClientRects()) {
+            if (!box.width || !box.height) continue;
+            const rect = document.createElement("div");
+            rect.className = one.active ? "pdf-hit pdf-hit-active" : "pdf-hit";
+            rect.style.left = `${box.left - page.left}px`;
+            rect.style.top = `${box.top - page.top}px`;
+            rect.style.width = `${box.width}px`;
+            rect.style.height = `${box.height}px`;
+            slot.hits.append(rect);
+          }
+        }
+      },
+
+      /** Every page's hits, gone — the search ended or the word changed. */
+      clearHits() {
+        for (const slot of slots) slot.hits?.replaceChildren();
       },
 
       /** Which pages are drawn, so their marks can be resolved and painted. */

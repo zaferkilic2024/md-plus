@@ -23,6 +23,10 @@ export const en = {
   "dialog.documents": "Documents",
 
   // ---- tab strip (main.js) ----
+  "window.minimize": "Minimise",
+  "window.maximize": "Maximise",
+  "window.restore": "Restore down",
+  "window.close": "Close",
   "tab.unsaved": "unsaved",
   "tab.untitled": "Untitled",
   "tab.newTitle": "New document · Ctrl+N",
@@ -66,6 +70,7 @@ export const en = {
   // ---- strip icons / menu (chrome.js) ----
   "menu.close": "Close",
   "menu.contents": "Contents",
+  "menu.pdfPage": "Page {n}",
   "menu.noHeadings": "No headings",
   "menu.marks": "Marks · F8",
   "menu.back": "Back · Alt+←",
@@ -83,6 +88,18 @@ export const en = {
   "menu.copy": "Copy",
 
   // ---- welcome screen (empty.js) — no em dashes here (Zafer) ----
+  "home.title": "About MD Plus",
+  "home.canTitle": "What can it do?",
+  "home.can1": "Write bold and you see bold. The asterisks and dashes show up only on the line you are working on; the rest is a clean page.",
+  "home.can2": "Open a paper, search inside it, carry the paragraph you need into your notes. Not one character is written back to the PDF.",
+  "home.can3": "Mark what matters as you read and write a note beside it. None of it enters your document: open the file elsewhere and only your own words are there.",
+  "home.can4": "Read on the left, write on the right. Send a passage across and a small line comes with it, saying where it came from.",
+  "home.can5": "Connect an AI if you want one. If you don't, the app reaches nowhere and sends nothing. Either way the pen is yours.",
+  "home.back": "Back",
+  "home.openSource": "MD Plus is open source. Its code, issues and licence live on GitHub.",
+  "home.repo": "Source code",
+  "home.issues": "Report an issue",
+  "home.license": "Licence",
   "empty.title": "Write, read, edit. All in one window.",
   "empty.spot": "The power of Markdown, beyond the marks. Just focus on the content.",
   "empty.new": "New document",
@@ -122,7 +139,18 @@ export const en = {
   "palette.aiTitle": "AI suggestions",
 
   // ---- search / find & replace (search.js) ----
+  "doc.zoomOut": "Zoom out · Ctrl+-",
+  "doc.zoomIn": "Zoom in · Ctrl++",
+  "doc.pageUp": "Previous page · PageUp",
+  "doc.pageDown": "Next page · PageDown",
+  "doc.fit": "Fill the window's width",
+  "doc.fitBack": "Back to 100%",
+  "doc.goToPage": "Go to page",
+  "doc.toTop": "Back to top",
   "search.placeholder": "Search document…",
+  "search.placeholderMarks": "Search marks…",
+  "search.scopeText": "Search the text",
+  "search.scopeMarks": "Search the marks",
   "search.prev": "Previous (Shift+Enter)",
   "search.next": "Next (Enter)",
   "search.close": "Close (Esc)",
@@ -141,6 +169,7 @@ export const en = {
   "strip.move": "Move",
   "strip.comment": "Comment",
   "strip.commentPlaceholder": "Comment…",
+  "strip.cancel": "Discard — what you wrote is dropped",
   "strip.done": "Done (Esc)",
 
   // ---- Transfer (transfer.js) ----

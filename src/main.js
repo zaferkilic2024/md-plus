@@ -3,7 +3,13 @@ import { invoke } from "@tauri-apps/api/core";
 import { createSurface, scrollToAnchor, suggestion, topLineText } from "./surface.js";
 import { documentJobs, jobOptions, provider } from "./ai.js";
 import { MarkStore } from "./marks.js";
-import { openReplace, openSearch } from "./search.js";
+import {
+  createPdfSearch,
+  inertSearchBox,
+  openReplace,
+  openSearch,
+  searchBoxOf,
+} from "./search.js";
 import { askChoice, askText } from "./confirm.js";
 import { readSession, writeSession } from "./session.js";
 import { insertLink } from "./commands.js";
@@ -36,13 +42,21 @@ import { Transfer } from "./transfer.js";
 import { printDocument, printPaper } from "./print.js";
 import { createEmptyState, sayNotMarkdown } from "./empty.js";
 import { createChrome, popover, recentRows, sayMissing, ICONS } from "./chrome.js";
+import { createWindowControls, dragRegion, wireResizeEdges } from "./window-frame.js";
+import { createDocTools } from "./doc-tools.js";
+import { attachToTop } from "./to-top.js";
+import { createHome } from "./home.js";
+import brandIcon from "../src-tauri/icons/128x128.png";
 import { forget, remember, renamePath, rows } from "./recents.js";
 import { effectiveLang, loadSettings } from "./settings.js";
 import { setLang, t } from "./i18n.js";
 import { relocalizePalettes, togglePalette } from "./palette.js";
 import { relocalizeSearch } from "./search.js";
 
-const tabsEl = document.getElementById("tabs");
+// The window's row (the title bar we draw ourselves) and, under it, the row
+// that belongs to whichever document is open.
+const tabsEl = document.getElementById("window-row");
+const docRowEl = document.getElementById("doc-row");
 const bodyEl = document.getElementById("body");
 
 const statusEl = document.getElementById("status");
@@ -149,15 +163,25 @@ function render() {
 // aç" is not here — it makes tabs, so it sits in the strip's tail beside "+"
 // (see renderTabs). No action lives only in a shortcut.
 const chromeDeps = {
-  activeTab: () => activeTab(),
-  onBack: () => goBack(),
+  // In Aktarma this group belongs to the LEFT panel, so it must answer about the
+  // source — not about whichever tab happens to be active. Opening a target
+  // opens it as a tab and activates it, so `activeTab()` in here was the target:
+  // the source panel's İçindekiler and İşaretler were listing the other
+  // document, and picking from that list moved the right-hand panel.
+  activeTab: () => (transfer.open ? transfer.source : activeTab()),
+  // One arrow, two exits — and they are the same sentence: leave where you went
+  // and come back. Inside Aktarma it leaves the screen; in the tabs it walks the
+  // link stack back (KR-82).
+  onBack: () => (transfer.open ? transfer.close() : goBack()),
   onSearch: () => {
     const tab = searchTarget();
-    // Ctrl+F is CodeMirror's; searching inside a PDF is its own machinery and
-    // is not written yet. Better nothing than a box that finds nothing.
     if (tab?.view) openSearch(tab.view);
+    else tab?.search?.open();
   },
   onCommand: (command) => {
+    // Home is the app's, not the document's: it opens with nothing open, which
+    // is the case it is most needed in.
+    if (command === "home") return toggleHome();
     const tab = activeTab();
     if (!tab) return;
     if (command === "close") return closeTab(activeIndex);
@@ -185,6 +209,31 @@ const chromeDeps = {
 // tooltips are set at creation). So it is `let`, and applyLanguage swaps it.
 let chrome = createChrome(chromeDeps);
 
+// Aktarma's right-hand panel holds a document too, so it gets the same two
+// tools — its own İçindekiler and its own İşaretler, answering about the target
+// rather than the source. A second instance, not a second implementation.
+// No back arrow: the way out belongs to the screen, and it is on the left.
+let targetChrome = createChrome({
+  activeTab: () => (transfer.open ? transfer.target : null),
+  onCommand: () => {},
+  onBack: () => {},
+  withBack: false,
+});
+
+// Built once and re-used across renders: the middle button listens for the
+// window's own resize events, and rebuilding it every render would stack a new
+// listener each time. Only a language change replaces it (applyLanguage).
+let windowControls = createWindowControls();
+wireResizeEdges();
+
+// The document row's middle: what THIS kind of document can do. Rebuilt on
+// every render (the kind can change with the tab), but kept as one object so
+// the page counter can be nudged without rebuilding the row on every scroll.
+let docTools = createDocTools({
+  activeTab,
+  onCommand: (command) => chromeDeps.onCommand(command),
+});
+
 /**
  * A language change (Settings) reaches every corner of a shell that was built
  * once. render() covers the empty screen, the tab strip and the status line; the
@@ -195,6 +244,18 @@ let chrome = createChrome(chromeDeps);
 function applyLanguage() {
   setLang(effectiveLang());
   chrome = createChrome(chromeDeps);
+  targetChrome = createChrome({
+    activeTab: () => (transfer.open ? transfer.target : null),
+    onCommand: () => {},
+    onBack: () => {},
+    withBack: false,
+  });
+  windowControls.dispose();
+  windowControls = createWindowControls();
+  docTools = createDocTools({
+    activeTab,
+    onCommand: (command) => chromeDeps.onCommand(command),
+  });
   relocalizePalettes();
   relocalizeSearch();
   transfer.relocalize();
@@ -205,7 +266,33 @@ window.addEventListener("dil-degisti", applyLanguage);
 
 function renderTabs() {
   tabsEl.replaceChildren();
-  tabsEl.append(chrome.left);
+
+  // The brand marks the window's corner, where the platform used to put the
+  // app's name. It is not a button: nothing opens from it.
+  const brand = document.createElement("div");
+  brand.className = "brand";
+  brand.setAttribute("data-tauri-drag-region", "");
+  // The application's own icon — the one on the taskbar and in the installer.
+  // A second drawing of the brand in here would be a second brand: whatever the
+  // window's corner shows has to be what the reader already knows the app by.
+  brand.innerHTML = `<img class="brand-icon" src="${brandIcon}" alt="" draggable="false">`;
+  // The mark and the app's own page are ONE group, and the group is separated
+  // from the tabs. Loose in the row they read as a third and fourth tab: the
+  // eye had nothing telling it where the app ended and the documents began.
+  const mark = document.createElement("div");
+  mark.className = "app-mark";
+  mark.append(brand, chrome.about);
+  tabsEl.append(mark);
+
+  // Aktarma has no tabs (KR-41: one source, one target, nothing remembered), so
+  // its bridge takes their place — same row, same seam with the paper below.
+  // Everything after this point (drag region, settings, window controls) is the
+  // window's and is identical in both modes.
+  if (transfer.open) {
+    tabsEl.append(transfer.bridge, dragRegion(), chrome.appTools, windowControls);
+    renderTransferRow();
+    return;
+  }
 
   // The tabs scroll among themselves. Without this box they grow the strip until
   // it pushes the icons on either side out of the window.
@@ -330,7 +417,7 @@ function renderTabs() {
   const openDoc = document.createElement("div");
   openDoc.className = "tab-open";
   openDoc.title = t("tab.openTitle");
-  openDoc.innerHTML = `<svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round">${ICONS.open}</svg>`;
+  openDoc.innerHTML = `<svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round">${ICONS.open}</svg>`;
   openDoc.onclick = () => openDocument();
   tabsEl.append(openDoc);
 
@@ -339,7 +426,7 @@ function renderTabs() {
   const recent = document.createElement("div");
   recent.className = "tab-recent";
   recent.title = t("tab.recentTitle");
-  recent.innerHTML = `<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round">${ICONS.chevron}</svg>`;
+  recent.innerHTML = `<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round">${ICONS.chevron}</svg>`;
   recent.hidden = recents.length === 0;
   openDoc.classList.toggle("alone", recents.length === 0);
   recent.onclick = () => openRecents(recent);
@@ -354,7 +441,7 @@ function renderTabs() {
   stack.hidden = true;
   stack.title = t("tab.allTitle");
   stack.innerHTML =
-    '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"><path d="M6 9l6 6 6-6"/></svg>';
+    '<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"><path d="M6 9l6 6 6-6"/></svg>';
   stack.onclick = () =>
     popover(
       stack,
@@ -368,7 +455,37 @@ function renderTabs() {
     );
   tabsEl.append(stack);
 
-  tabsEl.append(chrome.right);
+  // Everything past this point is the WINDOW's, not the tabs': the strip you
+  // grab to move it (and double-click to maximise), then settings, then the
+  // three controls hard against the corner.
+  tabsEl.append(dragRegion(), chrome.appTools, windowControls);
+
+  // The document row is rebuilt with the tabs, because what is in it depends on
+  // which document is in front. Empty screen: no row at all — the welcome
+  // screen opens straight under the window's own row (KR-63's rule, applied to
+  // the row that inherited the job).
+  // Left: where you are and how to get around. Then a gap, then the search box
+  // at the head of the right-hand group, then ⋯ at the very end.
+  //
+  // The box comes from the surface it searches (one per view), so a PDF — which
+  // has no CodeMirror view — simply gets no box today. It is not a greyed one:
+  // the app is exactly as large as what it can do here (KR-42). PDF search is
+  // its own job.
+  const front = activeTab();
+  const searchBox = front?.view
+    ? searchBoxOf(front.view, front.marks)
+    : (front?.search?.dom ?? null);
+  const gap = document.createElement("div");
+  gap.className = "doc-gap";
+  docTools.refresh();
+  docRowEl.replaceChildren(
+    chrome.left,
+    gap,
+    ...(searchBox ? [searchBox] : []),
+    docTools.dom,
+    chrome.right,
+  );
+  docRowEl.hidden = tabs.length === 0;
 
   // Whichever tab you are reading has to be the one you can see.
   activeEl?.scrollIntoView({ block: "nearest", inline: "nearest" });
@@ -379,18 +496,67 @@ function renderTabs() {
   chrome.updateMarksTool();
   chrome.updateContentsTool();
 
-  // On the opening screen (no document) the tools that act ON a document have
-  // nothing to act on: İçindekiler, search and the ⋯ menu all go (Zafer, 18
-  // Tem). Only Ayarlar stays — it belongs to the app, not the document.
-  chrome.setHasDocument(tabs.length > 0);
-
-  // …and with no document there is no tab strip at all: the whole row goes, so
-  // the welcome screen opens straight under the window frame (Zafer, 18 Tem).
-  // The ways in live in the welcome body, not here. (`hidden` needs the CSS rule
-  // below it — .tabs sets display:flex, which would otherwise beat [hidden].)
-  tabsEl.hidden = tabs.length === 0;
-
   measureTabs();
+}
+
+/**
+ * Aktarma's document row. The same row as the tabs', in the same place, with
+ * the same left-hand group — only its middle differs, because the body below it
+ * is two panels rather than one.
+ *
+ * Each panel gets its OWN search box, at its own end of the row: with two
+ * documents on screen a single box asks "which of them am I searching?" on
+ * every keystroke. The row is split where the panels are, so the boxes sit over
+ * what they search. No ⋯ here: the document menu saves, prints and closes, none
+ * of which is this screen's business, and "which document?" has two answers.
+ */
+function renderTransferRow() {
+  // fillBridge runs while the screen is still being set up, before `open` is
+  // true — the row it would draw then belongs to nobody.
+  if (!transfer.open) return;
+  docRowEl.hidden = false;
+
+  const leftHalf = document.createElement("div");
+  leftHalf.className = "row-half left";
+  leftHalf.append(chrome.left);
+
+  const sourceBox = transfer.source?.view
+    ? searchBoxOf(transfer.source.view, transfer.source.marks)
+    : (transfer.source?.search?.dom ?? null);
+  if (sourceBox) {
+    leftHalf.append(sourceBox);
+    sourceBox.classList.add("in-source");
+  }
+  leftHalf.append(Object.assign(document.createElement("div"), { className: "doc-gap" }));
+
+  // The target's half reads the same way as the source's, from the dividing
+  // line outwards: its tools first, then its search box, then space.
+  const rightHalf = document.createElement("div");
+  rightHalf.className = "row-half right";
+  rightHalf.append(targetChrome.left);
+  rightHalf.append(
+    transfer.target?.view
+      ? searchBoxOf(transfer.target.view, transfer.target.marks)
+      : inertSearchBox(),
+  );
+  rightHalf.append(Object.assign(document.createElement("div"), { className: "doc-gap" }));
+
+  // A half of the ROW is as much "that document" as the panel under it: its
+  // İçindekiler, its İşaretler, its search box. Picking from the source's marks
+  // list is working in the source — but that list hangs off the row, not off the
+  // panel, so pressing it left `side` at whatever it was before and F8 then
+  // walked the other document.
+  leftHalf.addEventListener("mousedown", () => { transfer.side = "source"; }, true);
+  rightHalf.addEventListener("mousedown", () => { transfer.side = "target"; }, true);
+
+  docRowEl.replaceChildren(leftHalf, rightHalf);
+  targetChrome.updateMarksTool();
+  targetChrome.updateContentsTool();
+  // The way out of Aktarma is the row's own back arrow — same drawing, same
+  // sentence ("back the way you came"), so the screen needs no arrow of its own.
+  chrome.setCanGoBack(true);
+  chrome.updateMarksTool();
+  chrome.updateContentsTool();
 }
 
 /** Shows the stack only while the tabs actually overflow their box. */
@@ -570,7 +736,9 @@ async function closeTab(index) {
   tabs.splice(at, 1);
   if (tab.timer) clearTimeout(tab.timer);
   tab.marks?.destroy();
+  tab.toTop?.destroy();
   tab.view?.destroy();
+  tab.search?.destroy();
   tab.pdf?.destroy();
   tab.host.remove();
   if (activeIndex >= tabs.length) activeIndex = tabs.length - 1;
@@ -656,6 +824,17 @@ function createTab({ path, text }) {
     },
   });
 
+  // The way back to the top of a long read. Attached to the surface's own
+  // scroller — in a document that is CodeMirror's, not the host's.
+  tab.toTop = attachToTop({
+    host,
+    scroller: tab.view.scrollDOM,
+    toTop: () => {
+      tab.view.scrollDOM.scrollTo({ top: 0, behavior: "smooth" });
+      saveSession();
+    },
+  });
+
   // A document's marks belong to the document, wherever it is on screen: they
   // are made and commented here (KR-55) and Aktarma borrows them to travel and
   // to send (KR-57). They used to be loaded by Aktarma, so a fresh launch showed
@@ -719,16 +898,23 @@ async function createPdfTab(path) {
     tab.pdf = await createPdfSurface({
       parent: host,
       data: await readBytes(path),
-      // The page counter in the status line follows the scroll.
-      onPage: () => {
-        if (activeTab() === tab) renderStatus();
+      // The page counter follows the scroll — in the status line, and in the
+      // document row's own counter (nudged, not rebuilt: rebuilding the row on
+      // every scroll event would tear down the box being typed into).
+      onPage: (page, total) => {
+        if (activeTab() !== tab) return;
+        renderStatus();
+        docTools.setPage(page, total);
       },
       onZoom: () => {
         if (activeTab() === tab) renderStatus();
       },
-      // A page is drawn late and lazily, so its marks can only be found and
-      // painted once it exists (Faz 2).
-      onPaint: () => tab.marks?.onPagePainted(),
+      // A page is drawn late and lazily, so its marks — and any search hits on
+      // it — can only be found and painted once it exists (Faz 2).
+      onPaint: (page) => {
+        tab.marks?.onPagePainted();
+        tab.search?.onPaint(page);
+      },
     });
   } catch (error) {
     console.warn(error);
@@ -757,6 +943,21 @@ async function createPdfTab(path) {
   });
   tab.marks.onCount = () => chrome.updateMarksTool();
   await tab.marks.load();
+
+  // The same box a document gets, over a surface that is not a document. A PDF
+  // has no view, so nothing builds it for us (search.js's plugin is a CM one).
+  tab.search = createPdfSearch(tab.pdf);
+  tab.search.setMarks(tab.marks);
+
+  // A PDF's "top" is page 1, not scrollTop 0 — goTo tells the counter and the
+  // saved place where the reader went, which a bare scroll would not.
+  tab.toTop = attachToTop({
+    host,
+    scroller: tab.pdf.dom,
+    dark: true,
+    toTop: () => tab.pdf.goTo(1),
+  });
+  renderTabs(); // the row was drawn before the box existed
 
   // The tab may have been closed, or another one activated, while it parsed.
   if (activeTab() === tab) {
@@ -1139,6 +1340,11 @@ function openRecents(anchor) {
     clearRecents();
   };
   menu.append(clear);
+
+  // The menu was measured while it was still empty — the rows and the 300px
+  // width arrived after. Now that it is whole, place it again, or a window
+  // narrow enough leaves its right-hand side off the screen.
+  menu.place();
 }
 
 /**
@@ -1323,7 +1529,15 @@ const transfer = new Transfer({
     return null;
   },
 });
-transfer.onClose = () => renderBody();
+// Leaving puts the tabs back in the window's row and the tab's own tools back
+// in the row below — both of which renderTabs owns.
+transfer.onClose = () => {
+  renderBody();
+  renderTabs();
+};
+// A target opened or dropped: the bridge's right-hand side changed, and so did
+// whether there is a second search box in the row.
+transfer.onRetarget = () => renderTransferRow();
 transfer.onPair = (source, target) => {
   lastPair = { source: source.path, target: target.path };
   saveSession();
@@ -1361,22 +1575,50 @@ async function openTransfer() {
   // silently reopened a document you were done with — the screen is for marking
   // first, and a target is something you ask for (KR-37).
   await transfer.show({ source, target: null });
+  // The shell's two rows are the shell's, so they are drawn from here: the
+  // bridge takes the tabs' place and the row below splits with the panels.
+  renderTabs();
 }
 
 let lastPair = { source: null, target: null };
 
 /**
- * Which document Ctrl+F means.
+ * Which document a key that says "in this document" means — Ctrl+F, Ctrl+H, F8.
  *
  * In the tabs it is never in doubt. Inside Aktarma there are two documents on
  * screen, so it is whichever one you are actually in — and if you are in neither
  * (the layer opens with nothing focused), it is the source: the document the
  * screen is about. The target is where text lands, not where you read.
+ *
+ * One answer for all of them on purpose. Search landing in one document while
+ * F8 walked another would be two screens pretending to be one.
  */
 function searchTarget() {
   if (!transfer.open) return activeTab();
-  const inTarget = transfer.target?.view?.dom.contains(document.activeElement);
-  return inTarget ? transfer.target : transfer.source;
+  // `side`, not focus: pressing a mark's badge moves no focus, so focus goes
+  // stale exactly when the reader has just said which document they mean.
+  return transfer.side === "target" && transfer.target ? transfer.target : transfer.source;
+}
+
+/**
+ * The home page, over whatever is open. A layer rather than a tab: it is not a
+ * document — it cannot be marked, saved or transferred — and a tab that could do
+ * none of those things would be a tab that lies.
+ */
+let homeLayer = null;
+
+function toggleHome() {
+  if (homeLayer) {
+    closeHome();
+    return;
+  }
+  homeLayer = createHome({ onClose: closeHome });
+  document.body.append(homeLayer);
+}
+
+function closeHome() {
+  homeLayer?.remove();
+  homeLayer = null;
 }
 
 /** UC-11. Inside Aktarma it is the target — the document being written. */
@@ -1520,6 +1762,13 @@ async function restoreSession() {
 }
 
 window.addEventListener("keydown", (event) => {
+  // The home page is the top of the stack while it is up: Escape closes it and
+  // nothing under it hears the key.
+  if (homeLayer && event.key === "Escape") {
+    event.preventDefault();
+    closeHome();
+    return;
+  }
   // Alt+← — back along the followed link. Not inside Aktarma: the tab strip is
   // out of reach there (SD-16), and so is switching documents under the layer.
   if (event.altKey && !event.ctrlKey && event.key === "ArrowLeft") {
@@ -1554,12 +1803,45 @@ window.addEventListener("keydown", (event) => {
     return;
   }
 
-  // F8 / Shift+F8 — the next mark, or the previous (the marks list's keyboard
-  // door). Aktarma travels with its own bridge; this one is the tab's.
-  if (event.key === "F8" && !event.ctrlKey && !event.altKey) {
-    if (transfer.open) return;
+  // PageUp / PageDown on a PDF: one whole page, not one windowful. The reader
+  // asked for the page — the browser's own scroll lands mid-paragraph and the
+  // page number under it becomes a guess.
+  const paging = { PageDown: 1, PageUp: -1 };
+  const arrows = { ArrowDown: 1, ArrowUp: -1 };
+  if ((paging[event.key] || arrows[event.key]) && !event.ctrlKey && !event.altKey) {
+    const reading = readingPdf();
+    if (!reading?.pdf) return;
+    // Not while typing in the row's own page field or search box.
+    if (event.target instanceof HTMLInputElement) return;
+
+    // ↑ ↓ turn pages only when the page is being held WHOLE on screen — that is
+    // the state in which a document reads as a deck of slides rather than a
+    // scroll, and turning is the only movement left that makes sense. Outside
+    // it they stay the ordinary scroll, because there the reader is halfway
+    // down a page and wants the next line, not the next page.
+    const step = paging[event.key] ?? (reading.pdf.fitted ? arrows[event.key] : 0);
+    if (!step) return;
+
     event.preventDefault();
-    activeTab()?.marks?.travelStep(event.shiftKey ? -1 : 1);
+    const pdf = reading.pdf;
+    pdf.goTo(Math.min(Math.max(1, pdf.page + step), pdf.pageCount));
+    return;
+  }
+
+  // F8 / Shift+F8 — the next mark, or the previous (the marks list's keyboard
+  // door).
+  //
+  // Which document, when two are on screen? The same answer Ctrl+F gives, and
+  // for the same reason: whichever one you are actually in, and the source if
+  // you are in neither (the layer opens with nothing focused). Two keys that
+  // both mean "in this document" cannot disagree about which document that is.
+  //
+  // It used to return early inside Aktarma, because travelling was the bridge's
+  // ‹n/m›. That counter is gone (2 Ağu) — this is now the only way through the
+  // marks there, so it had better work there.
+  if (event.key === "F8" && !event.ctrlKey && !event.altKey) {
+    event.preventDefault();
+    searchTarget()?.marks?.travelStep(event.shiftKey ? -1 : 1);
     return;
   }
 
@@ -1604,6 +1886,7 @@ window.addEventListener("keydown", (event) => {
     event.preventDefault();
     const tab = searchTarget();
     if (tab?.view) openSearch(tab.view);
+    else tab?.search?.open();
     return;
   }
 

@@ -138,26 +138,182 @@ body {
   height: 100%;
 }
 
-/* ---- tab strip ---- */
-/* No document, no strip: the whole row is removed on the welcome screen. This
-   rule is load-bearing — .tabs sets display:flex, which beats the UA [hidden]
-   rule, so the attribute alone would not hide it. */
-.tabs[hidden] {
-  display: none;
-}
-.tabs {
+/* ---- the window's row (this IS the title bar; decorations = false) ----
+   The app's row: brand, tabs, the two jobs that make tabs, settings, and the
+   window's three controls. It is never hidden — it is the window's frame now.
+   Colour says ownership: this row is cladding (n2), the document row below it
+   is paper (n0). */
+.window-row {
   display: flex;
   align-items: stretch;
   flex: none;
-  height: 36px;
+  height: 38px;
   background: var(--cladding);
+  /* Load-bearing: Aktarma's bridge is positioned against THIS row. Without it
+     the capsule resolved against the viewport, landed at the bottom of the
+     window and sat under the layer — present, addressed, and invisible. */
+  position: relative;
   /* No hairline under the strip. The active tab is white and fuses with the
      paper; a line drawn across that seam takes the sentence back — the tab
      would sit on the line rather than on the page. The boundary is still there,
      tone says it: strip n2, paper n0. What went was the noise, not the edge. */
-  padding: 0 8px;
+  padding: 0 0 0 4px;
   gap: 1px;
   user-select: none;
+}
+/* The app's corner: its mark, then its own page. Divided from the tabs by a
+   hairline — the same rule the strip's other groups follow. */
+.app-mark {
+  display: flex;
+  align-items: center;
+  flex: none;
+  padding-right: 8px;
+  margin-right: 8px;
+  border-right: 1px solid var(--n4);
+}
+/* Quieter than the working icons: it is an aside about the app, not a tool for
+   the document, and it sits next to the loudest thing on the row (the mark). It
+   comes up to their weight when the hand arrives. */
+.app-mark .tool {
+  color: var(--faint);
+}
+.app-mark .tool:hover {
+  color: var(--ink);
+}
+.brand {
+  display: flex;
+  align-items: center;
+  padding: 0 6px 0 4px;
+  flex: none;
+}
+/* Drawn from the 128px source and shown at 21: the icon is round already
+   (18 Tem), so it needs no frame of ours. Inert — the drag region under it must
+   get the press. */
+.brand-icon {
+  width: 28px;
+  height: 28px;
+  display: block;
+  pointer-events: none;
+}
+/* The stretch of row you grab to move the window. It has to be able to shrink
+   to nothing (the tabs come first), but it must never vanish entirely or a full
+   strip would leave no grip at all. */
+.drag-region {
+  flex: 1 1 auto;
+  min-width: 20px;
+}
+.app-tools {
+  display: flex;
+  align-items: center;
+  flex: none;
+  padding-right: 4px;
+}
+/* Windows' own measure: 46 wide, the full height of the bar, hard against the
+   corner. The corner is an infinite target; inset them by one pixel and it is
+   an ordinary small button again. */
+.window-controls {
+  display: flex;
+  align-items: stretch;
+  flex: none;
+}
+.window-control {
+  width: 46px;
+  border: 0;
+  background: transparent;
+  color: var(--n6);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: default;
+}
+/* Neutral, including close (Zafer, 2 Ağu): red in this app means "this is being
+   deleted", and closing a window deletes nothing. */
+.window-control:hover {
+  background: var(--n3);
+}
+
+/* ---- the document's row ----
+   Paper, because everything in it acts on the document in front of you — and
+   because the active tab above is white: with a grey row in between, that white
+   would be left hanging in mid-air. The paper's top edge starts here.
+   No document, no row (KR-63's rule, inherited). */
+.doc-row[hidden] {
+  display: none;
+}
+.doc-row {
+  display: flex;
+  align-items: center;
+  flex: none;
+  height: 40px;
+  background: var(--surface);
+  border-bottom: 1px solid var(--rule);
+  padding: 0 4px 0 6px;
+  gap: 2px;
+  user-select: none;
+}
+
+/* ---- resize edges (undecorated windows have none of their own) ---- */
+.resize-edges > * {
+  position: fixed;
+  z-index: 100;
+}
+.resize-edges [data-resize="North"] {
+  top: 0;
+  left: 8px;
+  right: 8px;
+  height: 4px;
+  cursor: ns-resize;
+}
+.resize-edges [data-resize="South"] {
+  bottom: 0;
+  left: 8px;
+  right: 8px;
+  height: 4px;
+  cursor: ns-resize;
+}
+.resize-edges [data-resize="West"] {
+  left: 0;
+  top: 8px;
+  bottom: 8px;
+  width: 4px;
+  cursor: ew-resize;
+}
+.resize-edges [data-resize="East"] {
+  right: 0;
+  top: 8px;
+  bottom: 8px;
+  width: 4px;
+  cursor: ew-resize;
+}
+.resize-edges [data-resize$="West"]:not([data-resize="West"]),
+.resize-edges [data-resize$="East"]:not([data-resize="East"]) {
+  width: 8px;
+  height: 8px;
+}
+.resize-edges [data-resize="NorthWest"] {
+  top: 0;
+  left: 0;
+  cursor: nwse-resize;
+}
+.resize-edges [data-resize="NorthEast"] {
+  top: 0;
+  right: 0;
+  cursor: nesw-resize;
+}
+.resize-edges [data-resize="SouthWest"] {
+  bottom: 0;
+  left: 0;
+  cursor: nesw-resize;
+}
+.resize-edges [data-resize="SouthEast"] {
+  bottom: 0;
+  right: 0;
+  cursor: nwse-resize;
+}
+/* Maximised there is no outside to drag towards, and the top-right strip would
+   sit on the close button. */
+body.maximized .resize-edges {
+  display: none;
 }
 /* The tabs live in their own scrolling box. `min-width: 0` is the load-bearing
    line: without it a flex child refuses to shrink below its content, so the
@@ -292,10 +448,10 @@ body {
   align-items: center;
   justify-content: center;
   align-self: center;
-  width: 26px;
-  height: 26px;
+  width: 28px;
+  height: 28px;
   border-radius: var(--r1);
-  color: var(--faint);
+  color: var(--secondary);
   cursor: pointer;
   flex: none;
 }
@@ -321,11 +477,11 @@ body {
   align-items: center;
   justify-content: center;
   align-self: center;
-  width: 15px;
-  height: 26px;
+  width: 16px;
+  height: 28px;
   margin-right: 4px;
   border-radius: var(--r1);
-  color: var(--faint);
+  color: var(--secondary);
   cursor: pointer;
   flex: none;
 }
@@ -395,21 +551,24 @@ body {
   border-left: 1px solid var(--n4);
   flex: none;
 }
+/* A size and a tone up from where they started (Zafer, 2 Ağu). Still inside the
+   system: the tone is `--n6`, the ramp's secondary ink — no new grey was
+   invented, the icons simply stopped being the faintest thing on the row. */
 .tool {
   display: flex;
   align-items: center;
   justify-content: center;
-  width: 28px;
-  height: 26px;
+  width: 30px;
+  height: 28px;
   border: 0;
   background: transparent;
   border-radius: var(--r1);
-  color: var(--faint);
+  color: var(--secondary);
   cursor: pointer;
 }
 .tool svg {
-  width: 17px;
-  height: 17px;
+  width: 19px;
+  height: 19px;
 }
 .tool:hover {
   background: var(--hover);
@@ -418,6 +577,18 @@ body {
 /* The marks list is ALWAYS on the strip and greys when there is nothing to list
    (Zafer, 18 Tem): a tool that comes and goes shoves the tabs sideways. Passive
    means fainter than faint, no hover answer, no pointer. */
+/* A toggle that is ON. The one filled shape among the quiet icons, and it earns
+   it: the medallion is saying "the page is being held whole", which is a state
+   the row would otherwise have no way of showing. Soft accent, not the accent
+   itself — it is a note, not a call to press. */
+.tool.on {
+  background: var(--accent-soft);
+  color: var(--accent);
+}
+.tool.on:hover {
+  background: #dfe9f3;
+  color: var(--accent-deep);
+}
 .tool:disabled {
   color: var(--n4);
   cursor: default;
@@ -539,8 +710,13 @@ body {
   letter-spacing: 0.12em;
   color: var(--faint);
 }
+/* Wide enough for a file name to be a file name, and never wider than the
+   window: a fixed width made the rows clip on one side and the menu hang off
+   the screen on the other. */
 .popover.recents {
-  width: 300px;
+  min-width: 300px;
+  max-width: min(440px, 92vw);
+  width: max-content;
 }
 .recent-row {
   display: flex;
@@ -939,6 +1115,42 @@ body {
   font-size: 12.5px;
   color: var(--faint);
 }
+/* A page row in the contents of a PDF that carries no outline of its own: the
+   page itself, small, with its number beside it. `display: flex`, and it has to
+   beat `.popover.outline button { display: block }` — hence the class on the
+   button rather than a descendant selector (the specificity trap, again). */
+.popover.outline button.outline-page {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  font-family: var(--ui);
+  font-size: 12.5px;
+  color: var(--secondary);
+  padding: 4px 8px;
+}
+/* The frame is drawn before the picture arrives, so the list does not jump as
+   the thumbnails land. A4 proportions; a page of another shape simply sits
+   inside its box. */
+/* The frame is exactly the picture: one fixed height, width from the page
+   itself. It used to be a fixed 46-wide box with the picture centred in it,
+   which left a strip of grey on either side and pushed the number away from the
+   page it belongs to. Before the picture lands the box holds A4's width, so the
+   list does not jump as they arrive. */
+.page-shot {
+  height: 90px;
+  min-width: 64px;
+  flex: none;
+  background: var(--n1);
+  border: 1px solid var(--frame);
+  border-radius: 2px;
+  overflow: hidden;
+  display: block;
+}
+.page-shot canvas {
+  height: 100%;
+  width: auto;
+  display: block;
+}
 
 /* ---- document body ---- */
 .body {
@@ -1154,6 +1366,45 @@ body.dragging .body {
 .host {
   width: 100%;
   height: 100%;
+  /* The "back to top" button is placed against this box. */
+  position: relative;
+}
+/* Floats over the body, so it can come and go without moving anything (KR-64's
+   reason, satisfied rather than dodged). Bottom-right: out of the reading
+   column, and where the hand already is on a scrolled page. */
+.to-top {
+  position: absolute;
+  right: 22px;
+  bottom: 20px;
+  z-index: 4;
+  width: 34px;
+  height: 34px;
+  border-radius: 50%;
+  background: rgba(255, 255, 255, 0.94);
+  border: 1px solid var(--frame);
+  box-shadow: var(--lift1);
+  color: var(--secondary);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: default;
+}
+.to-top:hover {
+  background: #fff;
+  color: var(--ink);
+}
+/* Over a PDF's grey table, paper-white would be a second sheet. */
+.to-top.dark {
+  background: rgba(38, 36, 33, 0.86);
+  border-color: rgba(255, 255, 255, 0.16);
+  color: #e8e5e0;
+}
+.to-top.dark:hover {
+  background: rgba(38, 36, 33, 0.96);
+  color: #fff;
+}
+.to-top[hidden] {
+  display: none;
 }
 .host[hidden] {
   display: none;
@@ -1168,8 +1419,16 @@ body.dragging .body {
   gap: 1px;
   padding: 3px;
   border-radius: var(--r2);
-  background: #2b3138;
-  box-shadow: 0 10px 24px -10px rgba(20, 24, 28, 0.55);
+  /* PAPER, everywhere (Zafer, 2 Ağu). It used to be the one dark object in the
+     whole cladding — the menu, the strip, the note box and the suggestion card
+     are all paper — so the same gesture produced what looked like two different
+     objects depending on which screen you were on. The dark box was also the
+     reason Aktarma needed a "palette-strip" skin at all.
+     A pale box over a selection needs its own edge to be read: hence the
+     hairline and the lift, exactly as the strip has always had them. */
+  background: var(--surface);
+  border: 1px solid var(--frame);
+  box-shadow: var(--lift1);
   font-family: var(--ui);
 }
 .palette[hidden] {
@@ -1178,7 +1437,7 @@ body.dragging .body {
 .palette button {
   background: transparent;
   border: 0;
-  color: #d3d8de;
+  color: var(--secondary);
   width: 30px;
   height: 28px;
   border-radius: var(--r1);
@@ -1189,8 +1448,8 @@ body.dragging .body {
   cursor: pointer;
 }
 .palette button:hover {
-  background: rgba(255, 255, 255, 0.1);
-  color: #fff;
+  background: var(--hover);
+  color: var(--ink);
 }
 /* `display: flex` above beats the browser's own [hidden] rule, so a hidden
    button would sit there in plain sight. The mark group swaps its two buttons
@@ -1200,35 +1459,20 @@ body.dragging .body {
 }
 /* İşaretle · Yorumla answer in the marks' own colour, which is what says these
    two are one group and not more formatting (KR-55). */
-.palette button.palette-mark:hover {
-  background: var(--mark-edge);
-  color: #fff;
-}
-/* The palette in Aktarma is not a palette (KR-71): the format and AI groups are
-   gone and two lone icons floating over the source read as the stump of
-   something larger. So it borrows the strip's clothes — paper, frame, named
-   verbs — and stands beside "Taşı" as the same kind of object.
-
-   The word is what changes; the button, the click and the position logic are
-   the palette's own. Only the skin is the strip's. */
-.palette-strip {
-  gap: 2px;
-  padding: 3px;
-  background: var(--surface);
-  border: 1px solid var(--frame);
-  box-shadow: var(--lift1);
-}
-/* Its own selector, not `.palette-strip button` — that would paint anything
-   anyone later puts in this box (the specificity trap this project keeps
-   paying for). */
-.palette.palette-strip .palette-mark {
+.palette .palette-mark {
   color: var(--mark-edge);
 }
-/* Two classes deep on purpose: `.palette button.palette-mark:hover` above is
-   (0,3,1) and would otherwise win with its dark-on-dark hover. */
-.palette.palette-strip .palette-mark:hover {
+.palette button.palette-mark:hover {
   background: var(--mark);
   color: var(--mark-edge);
+}
+/* All that is left of Aktarma's separate skin (KR-71). It existed because the
+   palette was dark and the strip was paper, so the narrow two-icon palette over
+   a source read as the stump of something larger. The palette is paper
+   everywhere now, so the skin's colours moved up into .palette itself and this
+   class keeps only the wider gap the named verb wants beside its neighbours. */
+.palette-strip {
+  gap: 2px;
 }
 /* The one word among the icons — "Taşı", the same weight and colour it has on
    the strip, because it is the same verb. */
@@ -1274,12 +1518,14 @@ body.dragging .body {
   top: calc(100% + 6px);
   left: 50%;
   transform: translateX(-50%);
-  background: #2b3138;
+  /* Paper, with the palette it hangs from (2 Ağu). */
+  background: var(--surface);
+  border: 1px solid var(--frame);
   border-radius: var(--r2);
   padding: 4px;
   display: flex;
   flex-direction: column;
-  box-shadow: 0 10px 24px -10px rgba(20, 24, 28, 0.55);
+  box-shadow: var(--lift1);
 }
 .palette-submenu[hidden] {
   display: none;
@@ -1319,7 +1565,14 @@ body.dragging .body {
 /* ---- Aktarma layer (KR-04) ---- */
 .layer {
   position: fixed;
-  inset: 0;
+  /* Not `inset: 0` any more: the window's own row is up there now, and covering
+     it would leave no way to close, move or resize the window while Aktarma is
+     open. The bridge has moved up into the tabs' place and the way out into the
+     document row, so the layer is now only the BODY — it starts under both. */
+  top: 78px;
+  right: 0;
+  bottom: 0;
+  left: 0;
   z-index: 8;
   background: var(--surface);
   display: flex;
@@ -1338,22 +1591,50 @@ body.dragging .body {
   display: none;
 }
 
-.bridge {
-  flex: none;
-  height: 44px;
+/* The bridge, in the tabs' place, wearing the active tab's clothes: paper, no
+   bottom edge, fused to the document row below. Aktarma is then the same shell
+   as the tabs — one row for the app, one for what is in front of you.
+
+   It spans the whole row and its two halves flex equally, so the arrow between
+   them falls exactly on the boundary between the panels underneath. The source
+   name ends at that line and the target name begins after it. */
+.bridge-slot {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  z-index: 1;
+  display: flex;
+  justify-content: center;
+  pointer-events: none;
+}
+/* Paper, no bottom edge, square-bottomed: the same clothes the active tab wears
+   and for the same reason — the row below it is paper too, and the capsule is
+   where that paper starts. */
+.bridge-capsule {
+  pointer-events: auto;
   display: flex;
   align-items: center;
-  gap: 12px;
-  padding: 0 14px;
-  border-bottom: 1px solid var(--frame);
-  background: var(--cladding);
+  height: 31px;
+  padding: 0 4px;
+  background: var(--surface);
+  border: 1px solid #e6e2da;
+  border-bottom: 0;
+  border-radius: var(--r1) var(--r1) 0 0;
 }
-/* The way out: the arrow alone. Its caption said what the arrow already said. */
-.bridge .back {
-  width: 30px;
-  height: 30px;
-  margin-right: 2px;
-  color: var(--secondary);
+.bridge-side {
+  flex: 1 1 0;
+  display: flex;
+  align-items: center;
+  min-width: 130px;
+}
+.bridge-side.left {
+  justify-content: flex-end;
+  padding-right: 9px;
+}
+.bridge-side.right {
+  justify-content: flex-start;
+  padding-left: 9px;
 }
 /* The source is stated, not chosen — you are already standing in it. */
 .source-name {
@@ -1599,35 +1880,131 @@ body.dragging .body {
 /* The chevron on the far left, the rows to its right — find on top, replace
    underneath once it is asked for. One box, not two: find and replace are one
    act with two halves. */
-.search {
-  position: absolute;
-  z-index: 6;
-  top: 10px;
-  right: 18px;
+/* The search box: a fixture of the document row, not a strip that floats over
+   the text. It is always there — Ctrl+F only puts the cursor in it — so nothing
+   has to be opened before a word can be typed.
+   `position: relative` is load-bearing: Ctrl+H hangs the replace row off the
+   bottom of THIS box, so the two halves stay one object. */
+.search-box {
+  position: relative;
+  /* Wide enough that the replace row fits under it at the SAME width: the panel
+     takes the box's edges, so making the panel bigger means making the box
+     bigger. A panel wider than the box it hangs from reads as a second object. */
+  flex: 0 1 310px;
+  min-width: 150px;
+  /* Two notches taller (Zafer, 2 Ağu): at 26 it read as a slot cut into the row
+     rather than a box sitting in it. */
+  height: 32px;
   display: flex;
-  align-items: flex-start;
-  gap: 2px;
-  padding: 3px;
-  background: var(--surface);
+  align-items: center;
+  background: var(--n1);
   border: 1px solid var(--frame);
-  border-radius: var(--r2);
-  box-shadow: var(--lift1);
+  border-radius: var(--r1);
 }
-.search[hidden] {
-  display: none;
+.search-box:focus-within {
+  background: var(--surface);
+  border-color: var(--accent);
 }
-.search-rows {
-  display: flex;
-  flex-direction: column;
-  gap: 2px;
+/* Waiting, not missing: Aktarma's target half before there is a target. */
+.search-box.inert {
+  opacity: 0.55;
+  pointer-events: none;
+}
+/* With the replace half open the two are ONE box: the seam between them is the
+   box's own bottom edge, so the corners there go square and the halves touch. */
+.search-box.swapping {
+  border-color: var(--accent);
+  border-bottom-left-radius: 0;
+  border-bottom-right-radius: 0;
 }
 .search-row {
   display: flex;
   align-items: center;
-  gap: 2px;
+  gap: 1px;
+  width: 100%;
+  padding: 0 3px 0 4px;
 }
 .search-row[hidden] {
   display: none;
+}
+/* The replace half, hung under the box. Same width, same edge — one object that
+   grew, not a second one that appeared. */
+/* The replace half: the box's own width, hung off its bottom edge, sharing both
+   side edges. One object that grew downwards — not a second one that appeared
+   under the first and stuck out past it. */
+.search-swap-box {
+  position: absolute;
+  top: 100%;
+  left: -1px;
+  right: -1px;
+  z-index: 6;
+  background: var(--surface);
+  border: 1px solid var(--accent);
+  border-top: 0;
+  border-radius: 0 0 var(--r1) var(--r1);
+  box-shadow: var(--lift1);
+}
+.search-swap-box[hidden] {
+  display: none;
+}
+.search-swap {
+  height: 32px;
+  padding: 0 3px 0 4px;
+}
+/* "60 değiştirildi" — a sentence, on its own line, where a sentence fits. It
+   used to be squeezed into the 40px counter, which was already saying n/m. */
+.search-note {
+  padding: 0 8px 6px 26px;
+  font-size: 11px;
+  color: var(--secondary);
+}
+.search-note[hidden] {
+  display: none;
+}
+/* The scope, and the scope is the icon: an empty glass reads the text, the
+   mark's glyph reads the marks. */
+.search-scope {
+  display: flex;
+  align-items: center;
+  gap: 1px;
+  flex: none;
+  border: 0;
+  background: transparent;
+  color: var(--secondary);
+  padding: 2px 1px 2px 0;
+  border-radius: 3px;
+  cursor: pointer;
+}
+.search-scope:hover {
+  background: var(--hover);
+  color: var(--ink);
+}
+/* Awake once the box is: the glass takes the accent while you are in it. It was
+   staying at rest-grey, so the box lit up around an icon that had not noticed. */
+.search-box:focus-within .search-scope {
+  color: var(--accent);
+}
+/* …unless the scope is the marks, which have a colour of their own and keep it
+   in both states — that colour IS the answer to "what am I searching?". */
+.search-scope.on-marks,
+.search-box:focus-within .search-scope.on-marks {
+  color: var(--mark-edge);
+}
+.search-scope svg {
+  width: 15px;
+  height: 15px;
+}
+.search-scope svg + svg {
+  width: 10px;
+  height: 10px;
+}
+/* Two short rows, so the strip's menu type is a size too loud here. */
+.scope-menu {
+  min-width: 176px;
+}
+.scope-menu button {
+  font-size: 12.5px;
+  padding: 5px 8px;
 }
 /* The way from find to replace, for the hand. Ctrl+H was the only door, and no
    action here belongs only to the people who know a key. It points down when the
@@ -1644,7 +2021,9 @@ body.dragging .body {
   border-radius: var(--r1);
   color: var(--faint);
   cursor: pointer;
-  transform: rotate(-90deg);
+  /* Drawn pointing down; up while the find row stands alone, down once the
+     replace row is open. One glyph, turning. */
+  transform: rotate(180deg);
   transition: transform 0.14s ease;
 }
 .search-toggle.open {
@@ -1674,21 +2053,127 @@ body.dragging .body {
  * and which was replace, so they read as labels. The glyph says it, points at
  * where the words go, and draws no box at all. The magnifier is the same one on
  * the tab strip; the field beside it is the same field it opens. */
-.search input {
-  width: 190px;
+.search-box input {
+  flex: 1;
+  min-width: 0;
   font: inherit;
   font-family: var(--ui);
-  font-size: 13.5px;
+  font-size: 12.5px;
   color: var(--ink);
   background: transparent;
   border: 0;
-  padding: 5px 0;
+  padding: 0 4px;
 }
-.search input::placeholder {
+.search-box input::placeholder {
   color: var(--faint);
 }
-.search input:focus {
+.search-box input:focus {
   outline: 0;
+}
+/* The row's own controls, at the box's scale — the strip's 30px buttons would
+   not fit a 24px box. */
+.search-box .icon-action {
+  width: 23px;
+  height: 23px;
+  flex: none;
+}
+.search-box .icon-action svg {
+  width: 16px;
+  height: 16px;
+  stroke-width: 2;
+}
+.search-box .icon-action:disabled {
+  color: var(--n4);
+  cursor: default;
+}
+.search-box .icon-action:disabled:hover {
+  background: transparent;
+  color: var(--n4);
+}
+.search-box .search-toggle {
+  height: 23px;
+  width: 20px;
+}
+.search-box .search-toggle svg {
+  width: 15px;
+  height: 15px;
+}
+/* Between the left-hand tools and the search box: the row's one gap. */
+.doc-gap {
+  flex: 1;
+  min-width: 8px;
+}
+/* Aktarma splits the document row where the panels split, so each panel's
+   search box sits over what it searches. The line between them is the panels'
+   own boundary, carried up into the row. */
+.row-half {
+  flex: 1 1 0;
+  display: flex;
+  align-items: center;
+  min-width: 0;
+  gap: 2px;
+}
+/* The dividing line is the panels' own boundary carried up into the row; the
+   target's tools start immediately to the right of it, exactly as the source's
+   start at the left edge. */
+.row-half.right {
+  border-left: 1px solid var(--frame);
+  padding-left: 6px;
+}
+/* The group is a group whichever panel it belongs to — no border of its own in
+   here, because the halves are already divided by the line above. */
+.row-half .strip-left {
+  border-right: 0;
+  padding-right: 0;
+  margin-right: 4px;
+}
+.row-half .search-box {
+  flex: 0 1 250px;
+}
+/* What this kind of document can do — between the search box and ⋯. */
+.doc-tools {
+  display: flex;
+  align-items: center;
+  gap: 1px;
+  flex: none;
+  padding-left: 4px;
+}
+.doc-sep {
+  width: 1px;
+  height: 17px;
+  background: var(--n4);
+  margin: 0 5px;
+  flex: none;
+}
+/* The page you are on — a field, always, because it is always writable. Quiet
+   at rest (it is mostly being read), edged once the hand arrives. */
+.page-field {
+  width: 38px;
+  font: 10.5px/1 var(--mono);
+  color: var(--ink);
+  /* Edged at rest, not only under the hand: a field that looks like plain text
+     until you happen to hover it is a field nobody knows is there. */
+  background: var(--n1);
+  border: 1px solid var(--frame);
+  border-radius: var(--r1);
+  padding: 5px 3px;
+  margin-left: 3px;
+  text-align: center;
+  outline: 0;
+}
+.page-field:hover {
+  background: var(--surface);
+}
+.page-field:focus {
+  border-color: var(--accent);
+  background: var(--surface);
+}
+/* How many there are. Not a control — nothing to decide about it. */
+.page-total {
+  font: 10.5px/1 var(--mono);
+  color: var(--faint);
+  padding-right: 4px;
+  white-space: nowrap;
 }
 /* Quiet, and quieter still than the word it introduces: it is a label, not a
    control — nothing happens if you touch it. The focused row's glyph steps up to
@@ -1706,15 +2191,14 @@ body.dragging .body {
   color: var(--ink);
 }
 .search-count {
-  min-width: 38px;
-  padding: 0 6px;
+  padding: 0 4px;
   text-align: right;
-  font-family: var(--ui);
-  font-size: 12.5px;
-  font-weight: 600;
+  font-family: var(--mono);
+  font-size: 10.5px;
   font-variant-numeric: tabular-nums;
-  color: var(--secondary);
+  color: var(--faint);
   white-space: nowrap;
+  flex: none;
 }
 /* Nothing found says so by going quiet-red, not by a message box. */
 .search-count.none {
@@ -2179,7 +2663,7 @@ body.dragging .body {
   height: 18px;
   margin: 0 3px;
   border: 0;
-  background: rgba(255, 255, 255, 0.16);
+  background: var(--n4);
   flex: none;
 }
 .palette-suggest > button {
@@ -3125,6 +3609,26 @@ body.dragging .body {
   box-shadow: 0 0 0 1px #ddc465;
 }
 
+/* Search hits, over the marks and under the text mesh. Same blending reason as
+   .pdf-marks: no z-index, or the multiply has nothing to multiply against. */
+.pdf-hits {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+}
+/* A hit is not a mark: marks are the writer's and stay, hits are this second's
+   question. So they wear the accent, exactly as in a document (.cm-bulgu). */
+.pdf-hit {
+  position: absolute;
+  background: #dbe9f5;
+  mix-blend-mode: multiply;
+  border-radius: 2px;
+}
+.pdf-hit-active {
+  background: #9ec5e8;
+  box-shadow: 0 0 0 1px #6ba3d6;
+}
+
 /* The PDF's selection palette: the same box the documents get, in its narrowest
    form (two icons). Positioned in the surface's own scrolled coordinates,
    because on a PDF the surface IS the scroller. */
@@ -3146,7 +3650,11 @@ body.dragging .body {
      the badge got neither the hover nor the click — both went to the invisible
      selection spans (Zafer, 28 Tem). */
   z-index: 3;
-  right: 6px;
+  /* In from the paper's edge, not on it (Zafer, 2 Ağu). Everything that lines up
+     with the badge — the note box, the strip, the hover preview — reads its
+     measured rect (pdf.js/badgeRect), so they follow this number rather than
+     repeating it. */
+  right: 16px;
   display: inline-flex;
   align-items: center;
   justify-content: center;
@@ -3162,4 +3670,164 @@ body.dragging .body {
 }
 .pdf-badge:hover {
   background: var(--mark);
+}
+
+
+/* ---- the home page (2 Ağu) ----
+   The welcome screen, reachable at any time. A layer, under the window's own
+   row so the window can still be moved and closed; the sheet inside it scrolls
+   on its own, because the page is longer than a small window. */
+.home-layer {
+  position: fixed;
+  top: 38px;
+  right: 0;
+  bottom: 0;
+  left: 0;
+  z-index: 20;
+  background: var(--paper);
+  overflow-y: auto;
+  display: flex;
+  justify-content: center;
+}
+.home-sheet {
+  width: 100%;
+  max-width: 980px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  padding: 0 24px 40px;
+}
+/* The welcome screen inside the sheet is no longer filling a window of its own,
+   so it stops trying to centre itself vertically. */
+.home-sheet .empty {
+  height: auto;
+  min-height: 0;
+  padding-top: 0;
+  flex: none;
+}
+/* The head's own padding is the empty WINDOW's breathing room; on a page that
+   continues below it, it is a gap. Overridden here only. */
+.home-sheet .empty .ic {
+  padding: 40px 32px 0;
+}
+/* The mark is the opening screen's centrepiece and this page's letterhead —
+   smaller, and closer to the words under it. */
+.home-sheet .empty .marka {
+  width: 84px;
+  height: 84px;
+  margin-bottom: 16px;
+  font-size: 34px;
+}
+/* With the ways in gone, the promise no longer needs the room they left. */
+.home-sheet .empty .girisler[hidden],
+.home-sheet .empty .empty-hint[hidden] {
+  display: none;
+}
+/* "Can it…?", answered in one line each. Prose, not chrome: the reading face and
+   a measure narrow enough to read. */
+.home-can {
+  width: 100%;
+  max-width: 620px;
+  margin-top: 8px;
+}
+.home-can h3 {
+  margin: 0 0 12px;
+  font: 600 13.5px/1 var(--ui);
+  color: var(--ink);
+}
+.home-can ul {
+  margin: 0;
+  padding-left: 18px;
+  list-style: none;
+}
+.home-can li {
+  position: relative;
+  margin-bottom: 10px;
+  font-size: 13.5px;
+  line-height: 1.62;
+  color: var(--secondary);
+}
+/* A quiet mark in the accent, not a bullet the browser chose. */
+.home-can li::before {
+  content: "";
+  position: absolute;
+  left: -14px;
+  top: 0.62em;
+  width: 5px;
+  height: 5px;
+  border-radius: 50%;
+  background: #c3d2e0;
+}
+.home-can code {
+  font: 11.5px/1 var(--mono);
+  background: var(--n2);
+  padding: 1px 4px;
+  border-radius: 3px;
+}
+
+.home-about {
+  width: 100%;
+  max-width: 620px;
+  text-align: center;
+}
+.home-rule {
+  height: 1px;
+  background: var(--frame);
+  margin: 26px 0 20px;
+}
+.home-open {
+  margin: 0 0 18px;
+  font-size: 13.5px;
+  color: var(--secondary);
+  line-height: 1.6;
+}
+.home-links {
+  display: flex;
+  justify-content: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+/* Quiet icons with their names beside them — the same grammar as the strip,
+   only these lead somewhere outside the app, so they say where. */
+.home-link {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  border: 1px solid var(--frame);
+  background: var(--surface);
+  border-radius: var(--r1);
+  padding: 7px 12px;
+  font: 12.5px/1 var(--ui);
+  color: var(--secondary);
+  cursor: default;
+}
+.home-link:hover {
+  background: var(--n2);
+  color: var(--ink);
+}
+.home-version {
+  margin: 22px 0 0;
+  font: 10.5px/1 var(--mono);
+  color: var(--faint);
+}
+/* Top left, where a way back is looked for, and fixed so it survives the scroll.
+   No fill, no frame — its weight comes from the word and from being first. */
+.home-back {
+  position: fixed;
+  top: 48px;
+  left: 20px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  border: 0;
+  background: transparent;
+  border-radius: var(--r1);
+  padding: 7px 12px 7px 8px;
+  font: 13.5px/1 var(--ui);
+  color: var(--secondary);
+  cursor: default;
+}
+.home-back:hover {
+  background: var(--hover);
+  color: var(--ink);
 }

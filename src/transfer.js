@@ -27,7 +27,7 @@ import { popover } from "./chrome.js";
 import { setAppMode } from "./context.js";
 import { closeAllSearch } from "./search.js";
 import { setReadOnly } from "./surface.js";
-import { GLYPH, iconAction } from "./strip.js";
+import { iconAction } from "./strip.js";
 import { passageMarkdown } from "./pdf-text.js";
 import { citeText, fragmentFor, headingTrail, quotedPiece } from "./citation.js";
 import { relativePath } from "./storage.js";
@@ -64,21 +64,30 @@ export class Transfer {
     this.dom.className = "layer";
     this.dom.hidden = true;
 
-    // ---- bridge bar: where you are, and the way back (KR-04) ----
+    // ---- the bridge (KR-04) ----
+    //
+    // It is no longer a bar of its own across the top of a full-screen layer.
+    // Aktarma shows no tabs — it works on one source and one target and
+    // remembers nothing (KR-41) — so the bridge takes the tabs' PLACE, up in the
+    // window's row, wearing the active tab's clothes: a paper capsule fused to
+    // the row below it. The screen's shell is then identical to the tabs'
+    // shell, which is the whole point (2 Ağu, Zafer: "panel ya da şerit ikiliği
+    // istemiyorum").
+    // Two boxes, not one: the slot spans the row (so its centre is the panels'
+    // boundary) and the capsule sits in the middle of it (so it is a capsule and
+    // not a white band across the whole strip).
     const bridge = document.createElement("div");
-    bridge.className = "bridge";
+    bridge.className = "bridge-slot";
+    this.bridge = bridge;
 
-    // The arrow says it: a long thin shaft going back the way you came, drawn
-    // lighter and larger than the working icons — it is a way out, not a tool.
-    // The words "Sekmelere dön" beside it were its caption, not information.
-    const back = document.createElement("button");
-    back.className = "icon-action back";
-    back.title = t("transfer.back");
-    back.setAttribute("aria-label", t("transfer.back"));
-    back.innerHTML = `<svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.25" stroke-linecap="round" stroke-linejoin="round">${GLYPH.back}</svg>`;
-    back.onclick = () => this.close();
-    this.backButton = back;
+    const capsule = document.createElement("div");
+    capsule.className = "bridge-capsule";
+    bridge.append(capsule);
 
+    // The way out is not built here any more: it is the document row's own back
+    // arrow, which already means "back the way you came" (GLYPH.back, one
+    // drawing one meaning). main.js sends it here while the layer is up.
+    //
     // One document, full width, and its marks to travel between. Sending them
     // somewhere else is a second thing you may or may not ask for — so nothing
     // about a target is on screen until you do (KR-41).
@@ -108,20 +117,24 @@ export class Transfer {
     this.closeTargetButton = iconAction("close", t("transfer.closeTarget"), () => this.dropTarget());
     this.aimed.append(this.targetPicker, this.closeTargetButton);
 
-    // Travel between the marks themselves — the reason you are on this screen.
-    // (The bar that used to sit here, showing how much of the document was
-    // marked, told you a number you could not act on. This you can act on.)
-    this.travel = document.createElement("div");
-    this.travel.className = "travel";
-    this.prevButton = iconAction("prev", t("transfer.prevMark"), () => this.travelTo(-1));
-    this.nextButton = iconAction("next", t("transfer.nextMark"), () => this.travelTo(1));
-    this.travel.append(
-      this.prevButton,
-      Object.assign(document.createElement("span"), { className: "travel-count" }),
-      this.nextButton,
-    );
+    // ‹ n/m › is GONE (2 Ağu, Zafer). The same thing was being said three times
+    // on one screen: travelling is F8, the list itself is the İşaretler icon in
+    // the document row, and the number is in the status line. What was left was
+    // spending width to repeat it.
+    //
+    // The source name sits in the LEFT half of the capsule and the target in the
+    // right, so the arrow between them lands on the boundary between the panels
+    // below — which half of the screen each name belongs to is then read, not
+    // worked out.
+    const left = document.createElement("div");
+    left.className = "bridge-side left";
+    left.append(this.sourceName);
 
-    bridge.append(back, this.sourceName, this.aimButton, this.aimed, this.travel);
+    const right = document.createElement("div");
+    right.className = "bridge-side right";
+    right.append(this.aimed);
+
+    capsule.append(left, this.aimButton, right);
 
     // ---- the two panels ----
     const panels = document.createElement("div");
@@ -141,7 +154,39 @@ export class Transfer {
     this.ghost.hidden = true;
     this.targetPanel.append(this.ghost);
 
-    this.dom.append(bridge, panels);
+    // Which panel the keys mean.
+    //
+    // Focus alone cannot answer it: clicking a mark's badge moves no focus at
+    // all (the badge is a widget with ignoreEvent → true, or the caret would be
+    // stolen from the text), so pressing a mark on the right and then F8 walked
+    // the marks on the LEFT — the last thing focused. What is being asked is not
+    // "where is the caret" but "which document am I working in", and that is
+    // answered by the last thing done to either of them: a press or a focus,
+    // whichever came last.
+    // The signal is the PRESS, and only the press.
+    //
+    // Focus was tried alongside it and made the answer worse, not better: the
+    // target's editor takes focus on its own — when it is bound into the panel,
+    // when a piece lands in it, when it is scrolled to show the ghost caret —
+    // so a focusin could arrive long after the reader last touched anything, and
+    // it arrived last. Then pressing a mark on the LEFT walked the marks on the
+    // right: the exact mirror of the bug this was meant to fix.
+    //
+    // A press is unambiguous and is always the reader's own doing. Capture
+    // phase, so it is heard whether or not the thing pressed handles the event.
+    for (const [panel, side] of [
+      [this.sourcePanel, "source"],
+      [this.targetPanel, "target"],
+    ]) {
+      panel.addEventListener("mousedown", () => {
+        this.side = side;
+      }, true);
+    }
+
+    // The layer is only the BODY now. The bridge lives in the window's row and
+    // the way out lives in the document row — both of them put there by main.js,
+    // because both of those rows are the shell's, not this screen's.
+    this.dom.append(panels);
     document.body.append(this.dom);
   }
 
@@ -204,6 +249,10 @@ export class Transfer {
     // No chevron: the send icon to its left already says this is where the text
     // goes, and the name itself is the thing you click to change it.
     if (aiming) this.targetPicker.textContent = this.target.title;
+
+    // The row below the bridge follows: a target that appears or goes takes a
+    // search box with it.
+    this.onRetarget?.();
   }
 
   /** Closes the target: back to one document, full width. Nothing is lost. */
@@ -265,6 +314,8 @@ export class Transfer {
     this.open = true;
     this.travelAt = null;
     this.pendingSend = null;
+    // The screen is about the source; nothing has been touched yet.
+    this.side = "source";
 
     // Crossing a layer sweeps the transients (B-22): a search box opened over
     // the tabs has no business floating over Aktarma. The mode flag is what the
@@ -501,31 +552,20 @@ export class Transfer {
   /** Re-labels the bridge in the current language (called on a language change).
       The menus are built fresh on open, so only the persistent bar needs this. */
   relocalize() {
-    this.backButton.title = t("transfer.back");
-    this.backButton.setAttribute("aria-label", t("transfer.back"));
     this.aimButton.title = t("transfer.pickTarget");
     this.aimButton.setAttribute("aria-label", t("transfer.pickTarget"));
     this.closeTargetButton.title = t("transfer.closeTarget");
     this.closeTargetButton.setAttribute("aria-label", t("transfer.closeTarget"));
-    this.prevButton.title = t("transfer.prevMark");
-    this.prevButton.setAttribute("aria-label", t("transfer.prevMark"));
-    this.nextButton.title = t("transfer.nextMark");
-    this.nextButton.setAttribute("aria-label", t("transfer.nextMark"));
   }
 
   // ---- travelling ----------------------------------------------------------
 
   showTravelCount() {
-    // `listing()`, not `list()`: on a PDF the second one only knows the marks
-    // whose page happens to be drawn, so the counter said "3" on a document with
-    // eleven marks in it and the bridge could not reach the other eight.
-    const count = this.marks?.listing().length ?? 0;
-    this.travel.hidden = count === 0;
-
-    // It wears the marks' own colour, which is what says these are marks. The
-    // word was redundant next to it.
-    this.travel.querySelector(".travel-count").textContent =
-      `${this.travelAt == null ? 0 : this.travelAt + 1}/${count}`;
+    // Nothing to draw any more — the counter left the bridge (2 Ağu). Travelling
+    // itself is unchanged: F8 walks the marks and `travelAt` still remembers
+    // where the walk got to.
+    // `listing()`, not `list()`, wherever the count is asked for: on a PDF the
+    // second one only knows the marks whose page happens to be drawn.
   }
 
   /**

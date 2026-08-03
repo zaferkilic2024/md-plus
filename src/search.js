@@ -18,10 +18,23 @@
 import { Decoration, EditorView, ViewPlugin } from "@codemirror/view";
 import { StateEffect, StateField } from "@codemirror/state";
 import { GLYPH, icon, iconAction } from "./strip.js";
+import { popover } from "./popover.js";
 import { t } from "./i18n.js";
 
 /** Turkish-correct folding: İ→i, I→ı. The whole reason this is hand-written. */
 const fold = (text) => text.toLocaleLowerCase("tr");
+
+/** The box's own arrows: the strip's chevrons, filled, for a 16px slot. */
+const solid = (path) =>
+  `<svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor" stroke="none">${path}</svg>`;
+const SOLID = {
+  prev: solid('<path d="M15.5 5L8.5 12l7 7z"/>'),
+  next: solid('<path d="M8.5 5l7 7-7 7z"/>'),
+  // Points UP while only the find row is showing, DOWN once the replace row is
+  // open (Zafer, 2 Ağu). It is drawn down and rotated by CSS, so the two states
+  // are one glyph turning rather than two drawings.
+  swap: solid('<path d="M5 8.5L12 15.5l7-7z"/>'),
+};
 
 /**
  * Every occurrence of `needle` in `haystack`, folded. Plain text, never a regex:
@@ -135,30 +148,57 @@ const hitsField = StateField.define({
 });
 
 class Search {
-  constructor(view) {
+  /**
+   * One box, two kinds of surface. `view` is a CodeMirror surface; `pdf` is a
+   * PDF one, which has no view at all (KR-68: a PDF is not a CM surface and does
+   * not pretend to be). Everything below asks `this.pdf` first and falls through
+   * to the document path — the same shape pdf-marks.js takes, and for the same
+   * reason: the box must not become two boxes.
+   */
+  constructor(view, pdf = null) {
     this.view = view;
+    this.pdf = pdf;
     this.hits = [];
     this.at = 0;
+    // Every PDF search is async (a page's text may still be in the worker), so
+    // a slow answer must not overwrite a newer question.
+    this.token = 0;
 
+    // Where the marks live, for the "işaretlerde" scope. Handed in at render
+    // time (searchBoxOf) rather than found from here: a view knows nothing about
+    // the tab it belongs to, and inventing a way back would be a second truth.
+    this.marks = null;
+    this.scope = "text";
+    this.markHits = [];
+
+    // The box is a fixture of the document row now, not a strip that floats over
+    // the text: it is always there, and Ctrl+F only puts the cursor in it.
     this.dom = document.createElement("div");
-    this.dom.className = "search";
-    this.dom.hidden = true;
-    // Its own clicks are its own: the editor listens for clicks on marks, and
-    // this floats inside it (see the trap in CLAUDE.md).
+    this.dom.className = "search-box";
     this.dom.addEventListener("click", (event) => event.stopPropagation());
     this.dom.onmousedown = (event) => {
-      if (event.target.closest("input")) return;
+      if (event.target.closest("input, button")) return;
       event.preventDefault();
     };
+
+    // The scope, said by the icon itself: an empty glass searches the text, the
+    // mark's own glyph searches the marks. The chevron only says "this can
+    // change" — the meaning is already in the drawing.
+    this.scopeButton = document.createElement("button");
+    this.scopeButton.className = "search-scope";
+    this.scopeButton.onclick = () => this.pickScope();
 
     this.field = document.createElement("input");
     this.field.type = "text";
     this.field.placeholder = t("search.placeholder");
-    this.field.oninput = () => this.run();
+    this.field.oninput = () => {
+      this.clearNote(); // a new question; the last answer is no longer about it
+      this.run();
+    };
     this.field.onkeydown = (event) => {
       if (event.key === "Escape") {
         event.preventDefault();
-        this.close();
+        this.clear();
       } else if (event.key === "Enter") {
         event.preventDefault();
         this.go(event.shiftKey ? -1 : 1);
@@ -168,20 +208,35 @@ class Search {
     this.count = document.createElement("span");
     this.count.className = "search-count";
 
+    // Solid triangles, not the strip's outlined chevrons. At 16px inside a 26px
+    // box a 1.7-weight stroke is three grey hairs; filled, the same arrow reads
+    // at a glance (Zafer, 2 Ağu). Same meaning, same direction — only the weight
+    // changes, and it changes because the size did.
     this.prevButton = iconAction("prev", t("search.prev"), () => this.go(-1));
     this.nextButton = iconAction("next", t("search.next"), () => this.go(1));
-    this.closeButton = iconAction("close", t("search.close"), () => this.close());
+    this.prevButton.innerHTML = SOLID.prev;
+    this.nextButton.innerHTML = SOLID.next;
+    this.closeButton = iconAction("close", t("search.close"), () => this.clear());
 
     const find = document.createElement("div");
     find.className = "search-row";
-    find.append(lead("search"), this.field, this.count, this.prevButton, this.nextButton, this.closeButton);
+    find.append(
+      this.scopeButton,
+      this.field,
+      this.count,
+      this.prevButton,
+      this.nextButton,
+      this.closeButton,
+    );
 
     // The replace row is not shown to everyone who searches. Ctrl+F is a reading
     // act — you are looking for something — and most of the time it ends there.
     // Ctrl+H is a writing act, and asks for this row by name.
     this.swapRow = document.createElement("div");
     this.swapRow.className = "search-row search-swap";
-    this.swapRow.hidden = true;
+    // NOT hidden: the box around it (swapBox) is what opens and shuts now. It
+    // was left hidden here and the panel opened as a bare 1px line — the frame
+    // was there, its contents were not.
 
     this.swapField = document.createElement("input");
     this.swapField.type = "text";
@@ -218,26 +273,82 @@ class Search {
 
     this.swapRow.append(lead("swap"), this.swapField, this.swapOne, this.swapAll);
 
+    // "60 değiştirildi" used to go into the counter, which is 40px wide and
+    // already answering a different question. It gets its own line under the
+    // replace row: the one place in this box where a sentence can be a sentence.
+    this.note = document.createElement("div");
+    this.note.className = "search-note";
+    this.note.hidden = true;
+
+    this.swapBox = document.createElement("div");
+    this.swapBox.className = "search-swap-box";
+    this.swapBox.hidden = true;
+    this.swapBox.append(this.swapRow, this.note);
+
     // The way in, for the hand rather than the shortcut. Ctrl+H was the only
     // door to replace, and this app's own rule is that no action is reachable
     // only by knowing a key. It is the same chevron the palette wears when a
     // word opens something — it just turns to face the way it went.
     this.toggle = document.createElement("button");
     this.toggle.className = "search-toggle";
-    this.toggle.innerHTML = icon(GLYPH.chevron);
-    this.toggle.onclick = () => this.showSwap(this.swapRow.hidden);
+    this.toggle.innerHTML = SOLID.swap;
+    // Asks the box that actually opens and shuts. It used to ask `swapRow`,
+    // which stopped being the thing that hides — so the answer was always
+    // "already open" and every click meant "close".
+    this.toggle.onclick = () => this.showSwap(this.swapBox.hidden);
 
-    const rows = document.createElement("div");
-    rows.className = "search-rows";
-    rows.append(find, this.swapRow);
-
-    this.dom.append(this.toggle, rows);
-    view.dom.append(this.dom);
+    find.append(this.toggle);
+    this.dom.append(find, this.swapBox);
+    // NOT appended to view.dom any more: the box lives in the document row, and
+    // main.js puts it there for whichever tab is in front (searchBoxOf).
+    //
     // Collapsed to begin with. The chevron's visibility is NOT settled here —
     // at construction every surface is still editable (Aktarma takes the source
     // read-only afterwards), so an answer given now would be a guess. It is
     // asked in refreshWritable, when it can change and when it matters.
     this.showSwap(false);
+    this.showScope();
+  }
+
+  /** The two scopes, as a menu under the icon. Two entries, so the icon could
+      have simply toggled — but then the second scope would exist only for
+      whoever clicked and noticed. A menu says what there is. */
+  pickScope() {
+    const menu = popover(this.scopeButton, [
+      {
+        icon: "search",
+        label: t("search.scopeText"),
+        active: this.scope === "text",
+        run: () => this.setScope("text"),
+      },
+      {
+        icon: "marks",
+        label: t("search.scopeMarks"),
+        active: this.scope === "marks",
+        run: () => this.setScope("marks"),
+      },
+    ]);
+    menu?.classList.add("scope-menu");
+  }
+
+  setScope(scope) {
+    this.scope = scope;
+    this.showScope();
+    this.refreshWritable();
+    this.run();
+    this.field.focus();
+  }
+
+  /** The icon IS the answer, so it is the icon that changes. */
+  showScope() {
+    const marks = this.scope === "marks";
+    this.scopeButton.innerHTML =
+      icon(marks ? GLYPH.marks : GLYPH.search) + icon(GLYPH.chevron, 9);
+    this.scopeButton.classList.toggle("on-marks", marks);
+    this.scopeButton.title = marks ? t("search.scopeMarks") : t("search.scopeText");
+    this.field.placeholder = marks
+      ? t("search.placeholderMarks")
+      : t("search.placeholder");
   }
 
   /**
@@ -257,14 +368,19 @@ class Search {
    * opens). Never offer a door that opens onto a wall (KR-22).
    */
   refreshWritable() {
-    this.toggle.hidden = !this.writable;
-    if (!this.writable) this.showSwap(false);
+    this.toggle.hidden = !this.writable || this.scope !== "text";
+    if (this.toggle.hidden) this.showSwap(false);
   }
 
-  /** Opens or shuts the replace half, and turns the chevron to say which. */
+  /** Opens or shuts the replace half, and turns the chevron to say which.
+      Never over the marks: a mark is a place in the document, not a word to be
+      swapped, and its note is not the document's text at all. */
   showSwap(show) {
-    const on = show && this.writable;
-    this.swapRow.hidden = !on;
+    const on = show && this.writable && this.scope === "text";
+    this.swapBox.hidden = !on;
+    if (!on) this.clearNote();
+    // The box and the row below it are drawn as one object while it is open.
+    this.dom.classList.toggle("swapping", on);
     this.toggle.classList.toggle("open", on);
     this.toggle.title = on ? t("search.closeReplace") : t("search.openReplace");
     if (on) {
@@ -276,6 +392,9 @@ class Search {
   /** Aktarma's source is read-only, and a read-only surface is not asked to be
       rewritten (KR-22). The row simply is not there. */
   get writable() {
+    // Nothing is ever written into a PDF (KR-68), so the replace half of the
+    // box simply does not exist there.
+    if (this.pdf) return false;
     return this.view.state.facet(EditorView.editable);
   }
 
@@ -284,15 +403,16 @@ class Search {
   }
 
   open({ swap = false } = {}) {
-    this.dom.hidden = false;
-
     this.refreshWritable();
 
     // Whatever is selected is what you are almost certainly looking for.
-    const range = this.view.state.selection.main;
-    if (!range.empty && range.to - range.from < 100) {
-      this.field.value = this.view.state.sliceDoc(range.from, range.to);
-    }
+    const picked = this.pdf
+      ? this.pdf.selectedText()
+      : (() => {
+          const range = this.view.state.selection.main;
+          return range.empty ? "" : this.view.state.sliceDoc(range.from, range.to);
+        })();
+    if (picked && picked.length < 100) this.field.value = picked.replace(/\s+/g, " ").trim();
     this.run();
 
     // Ctrl+H asks for the row; Ctrl+F never takes it away again (closing the
@@ -364,7 +484,7 @@ class Search {
 
   /** Re-reads its labels in the current language (called on a language change). */
   relocalize() {
-    this.field.placeholder = t("search.placeholder");
+    this.showScope(); // sets the placeholder and the scope title
     this.prevButton.title = t("search.prev");
     this.nextButton.title = t("search.next");
     this.closeButton.title = t("search.close");
@@ -376,36 +496,165 @@ class Search {
     this.showSwap(!this.swapRow.hidden); // refreshes the toggle title
   }
 
-  /** A word from the strip, in the strip, gone on the next keystroke. */
+  /** A word from the box, under the replace row, gone on the next keystroke. */
   said(text) {
-    this.count.textContent = text;
-    this.count.classList.remove("none");
+    this.note.textContent = text;
+    this.note.hidden = false;
   }
 
-  /** `quiet`: being closed because another document is being searched — do not
-      grab focus on the way out, the writer is looking somewhere else. */
-  close({ quiet = false } = {}) {
-    if (this.dom.hidden) return;
-    this.dom.hidden = true;
-    this.swapRow.hidden = true;
+  clearNote() {
+    this.note.textContent = "";
+    this.note.hidden = true;
+  }
+
+  /**
+   * Escape and ✕. The box no longer goes away — it is part of the row — so what
+   * ends is the SEARCH: the word, the highlights, the count. `quiet`: another
+   * document is being searched, so do not pull the focus back here.
+   */
+  clear({ quiet = false } = {}) {
+    const wasEmpty = !this.field.value && this.swapBox.hidden;
+    this.field.value = "";
+    // Through showSwap, NOT by hiding the row inside it: hiding the row left the
+    // panel opening as an empty frame ever after — the box would open and there
+    // would be nothing in it.
+    this.showSwap(false);
     this.hits = [];
-    // The needle goes with it: with the strip shut, nothing should be recounting
-    // anything on every keystroke.
-    this.view.dispatch({ effects: setHits.of({ needle: "", hits: [], at: 0 }) });
-    if (!quiet) this.view.focus();
+    this.markHits = [];
+    this.at = 0;
+    this.token++; // any answer still in flight is now stale
+    // The needle goes with it: with nothing being looked for, nothing should be
+    // recounting anything on every keystroke.
+    if (this.pdf) this.pdf.clearHits();
+    else this.view.dispatch({ effects: setHits.of({ needle: "", hits: [], at: 0 }) });
+    this.tell();
+    if (!quiet && !wasEmpty) (this.pdf ?? this.view).focus();
   }
 
   run() {
+    if (this.pdf && this.scope === "text") {
+      this.runPdf();
+      return;
+    }
+
+    if (this.scope === "marks") {
+      const needle = fold(this.field.value);
+      // A mark is its passage AND its note: someone who wrote "bunu tezin
+      // ikinci bölümüne" is looking for those words, not for the quotation.
+      this.markHits = !needle
+        ? []
+        : (this.marks?.listing() ?? []).filter(({ record, text }) =>
+            fold(`${text} ${record.yorum ?? ""}`).includes(needle),
+          );
+      this.at = 0;
+      // No highlights of our own: the marks are already painted, and travelling
+      // to one shades it (marks.js/travelShade). Two paints, one meaning.
+      // Guarded: a PDF has no view, and this line threw the moment the scope was
+      // switched to marks on one.
+      this.view?.dispatch({ effects: setHits.of({ needle: "", hits: [], at: 0 }) });
+      this.tell();
+      // Land on the first one, exactly as the text scope does (paint reveals).
+      // Without this the first Enter stepped to the SECOND hit: `at` was already
+      // 0 and nobody had gone there.
+      if (this.markHits.length) this.marks?.travelTo(this.markHits[0].record.id);
+      return;
+    }
+
     this.hits = findAll(this.view.state.doc.toString(), this.field.value);
     this.at = 0;
     this.paint({ reveal: this.hits.length > 0 });
   }
 
+  /**
+   * The whole PDF, not the pages on screen. A page's text is asked for whether
+   * or not it is drawn (pdf.textForSearch) — a search that only found what was
+   * already visible would be answering a question nobody asked.
+   *
+   * Hits are `{page, from, to}`: a PDF has no document-wide offset, and inventing
+   * one would be a second coordinate system to keep in step with the first.
+   */
+  async runPdf() {
+    const token = ++this.token;
+    const needle = this.field.value;
+    this.pdf.clearHits();
+
+    if (!needle) {
+      this.hits = [];
+      this.at = 0;
+      this.tell();
+      return;
+    }
+
+    const found = [];
+    for (let page = 1; page <= this.pdf.pageCount; page++) {
+      const text = await this.pdf.textForSearch(page);
+      if (token !== this.token) return; // a newer keystroke won
+      for (const hit of findAll(text, needle)) found.push({ page, ...hit });
+    }
+
+    this.hits = found;
+    this.at = 0;
+    this.tell();
+    this.paintPdf();
+    // Not a jump on every keystroke: typing is still asking the question. The
+    // first hit is walked to only when the reader says so (Enter, or ›).
+  }
+
+  /** The hits on the pages that happen to be drawn. The rest paint themselves
+      when their page is (onPaint → repaintSearch). */
+  paintPdf() {
+    if (!this.pdf) return;
+    const byPage = new Map();
+    this.hits.forEach((hit, index) => {
+      if (!byPage.has(hit.page)) byPage.set(hit.page, []);
+      byPage.get(hit.page).push({ ...hit, active: index === this.at });
+    });
+    for (const [page, ranges] of byPage) this.pdf.paintHits(page, ranges);
+  }
+
+  /** A page was just drawn — anything found on it is painted now. */
+  repaintPage(page) {
+    if (!this.pdf || !this.hits.length) return;
+    const ranges = this.hits
+      .map((hit, index) => ({ ...hit, active: index === this.at }))
+      .filter((hit) => hit.page === page);
+    if (ranges.length) this.pdf.paintHits(page, ranges);
+  }
+
   /** ‹ n/m › — the same counter as travelling between marks (KR-38). */
   go(step) {
+    if (this.pdf && this.scope === "text") {
+      if (!this.hits.length) return;
+      this.at = (this.at + step + this.hits.length) % this.hits.length;
+      this.goPdf();
+      return;
+    }
+
+    if (this.scope === "marks") {
+      if (!this.markHits.length) return;
+      this.at = (this.at + step + this.markHits.length) % this.markHits.length;
+      this.marks?.travelTo(this.markHits[this.at].record.id);
+      this.tell();
+      return;
+    }
+
     if (!this.hits.length) return;
     this.at = (this.at + step + this.hits.length) % this.hits.length;
     this.paint({ reveal: true });
+  }
+
+  /**
+   * Walks to the current hit: draw its page first, THEN put the range on
+   * screen. `goTo` alone stops at the top of a page, and at this zoom a page is
+   * taller than the window — the same thing that had to be fixed for F8 (B-32).
+   */
+  async goPdf() {
+    const hit = this.hits[this.at];
+    if (!hit) return;
+    this.tell();
+    await this.pdf.showPage(hit.page);
+    this.pdf.revealRange(hit.page, hit.from, hit.to);
+    this.paintPdf();
   }
 
   paint({ reveal = false } = {}) {
@@ -427,7 +676,11 @@ class Search {
    * inside an update is not ours to do.
    */
   sync() {
-    if (this.dom.hidden) return;
+    if (!this.field.value) return;
+    if (this.scope === "marks") {
+      this.run(); // an edit can make or break a mark's words
+      return;
+    }
     const state = this.view.state.field(hitsField);
     this.hits = state.hits;
     this.at = state.at;
@@ -436,11 +689,15 @@ class Search {
 
   /** The counter — ‹ n/m ›, or nothing at all. */
   tell() {
+    const found = this.scope === "marks" ? this.markHits : this.hits;
     // "0/0" would be a lie about a search that has not been made yet.
     this.count.textContent = this.field.value
-      ? `${this.hits.length ? this.at + 1 : 0}/${this.hits.length}`
+      ? `${found.length ? this.at + 1 : 0}/${found.length}`
       : "";
-    this.count.classList.toggle("none", Boolean(this.field.value) && !this.hits.length);
+    this.count.classList.toggle("none", Boolean(this.field.value) && !found.length);
+    // Nothing to step through, nothing to press.
+    this.prevButton.disabled = !found.length;
+    this.nextButton.disabled = !found.length;
   }
 }
 
@@ -489,10 +746,66 @@ export const searchField = hitsField;
  */
 export function openSearch(view, { swap = false } = {}) {
   for (const [each, search] of searchers) {
-    if (each !== view) search.close({ quiet: true });
+    if (each !== view) search.clear({ quiet: true });
   }
   searchers.get(view)?.open({ swap });
   return true;
+}
+
+/**
+ * The box for this view, ready to be put in the document row — and told where
+ * this tab's marks are, for the "işaretlerde" scope. Called on every render, so
+ * a tab that gains or loses its store is never left holding a stale one.
+ */
+export function searchBoxOf(view, marks = null) {
+  const search = searchers.get(view);
+  if (!search) return null;
+  search.marks = marks;
+  return search.dom;
+}
+
+/**
+ * A box that is there and cannot be used: Aktarma's target half before a target
+ * is open. The row is split down the middle, so an empty right half read as
+ * something missing rather than something waiting — and the two halves stopped
+ * balancing. Passive, not absent (KR-64's rule: a thing that comes and goes
+ * moves everything beside it).
+ */
+export function inertSearchBox() {
+  const box = document.createElement("div");
+  box.className = "search-box inert";
+  const row = document.createElement("div");
+  row.className = "search-row";
+  const glass = document.createElement("span");
+  glass.className = "search-scope";
+  glass.innerHTML = icon(GLYPH.search);
+  const field = document.createElement("input");
+  field.disabled = true;
+  field.placeholder = t("search.placeholder");
+  row.append(glass, field);
+  box.append(row);
+  return box;
+}
+
+/**
+ * A PDF's search box. There is no ViewPlugin to build it — a PDF has no view —
+ * so the tab makes one when the surface is created and hands it back on close.
+ * Keyed by the surface, so the same tab always gets the same box.
+ */
+export function createPdfSearch(pdf) {
+  const search = new Search(null, pdf);
+  searchers.set(pdf, search);
+  return {
+    dom: search.dom,
+    /** A page finished drawing: paint whatever was found on it. */
+    onPaint: (page) => search.repaintPage(page),
+    setMarks: (marks) => {
+      search.marks = marks;
+    },
+    open: (options) => search.open(options),
+    relocalize: () => search.relocalize(),
+    destroy: () => searchers.delete(pdf),
+  };
 }
 
 /**
@@ -514,7 +827,7 @@ export function openReplace(view) {
  * target came back to the tabs still standing.
  */
 export function closeAllSearch() {
-  for (const search of searchers.values()) search.close({ quiet: true });
+  for (const search of searchers.values()) search.clear({ quiet: true });
 }
 
 /** Every search box, re-labelled — the boxes are built once per surface, so a
