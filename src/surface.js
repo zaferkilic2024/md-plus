@@ -250,18 +250,24 @@ function paint(marks) {
     // The badge hangs in the margin beside the mark's FIRST line, not inline at
     // its end: inline, the badges landed wherever the prose happened to stop, so
     // a column of comments read as scattered debris. Out here they line up.
-    // Two widgets at one position, opposite margins. CodeMirror keeps them in
-    // the order given, which is why the comment is pushed first: both are
-    // absolutely positioned, so DOM order costs nothing visually, but it does
-    // decide which one a measuring pass meets first.
-    if (mark.yorumlu) {
-      decorations.push(
-        Decoration.widget({ widget: new BadgeWidget(mark.id, "note"), side: -1 }).range(mark.from),
-      );
-    }
+    // Two widgets at one position, opposite margins — and the ARROW GOES FIRST.
+    //
+    // Both are absolutely positioned, so the order costs nothing visually. What
+    // it buys is stability: CodeMirror matches widgets at a position by index,
+    // so a comment badge appearing in front of the arrow makes the pair line up
+    // wrongly and BOTH get rebuilt — the arrow loses the `top` that was measured
+    // onto it and falls back to the CSS default until the next measuring pass.
+    // The comment comes and goes (hovering one opens a preview, which draws its
+    // badge); the arrow only changes when a piece is moved. Putting the steady
+    // one first means the restless one is always the appended item.
     if (mark.tasindi) {
       decorations.push(
         Decoration.widget({ widget: new BadgeWidget(mark.id, "sent"), side: -1 }).range(mark.from),
+      );
+    }
+    if (mark.yorumlu) {
+      decorations.push(
+        Decoration.widget({ widget: new BadgeWidget(mark.id, "note"), side: -1 }).range(mark.from),
       );
     }
   }

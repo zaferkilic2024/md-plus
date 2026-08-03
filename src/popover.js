@@ -37,6 +37,25 @@ export const frozenAnchor = (rect) => ({
 });
 
 /**
+ * The place that was pressed, as an anchor.
+ *
+ * For menus opened from something that will not hold still: a mark's badge is
+ * measured a frame late and rebuilt on every repaint, so its rect is either
+ * stale or zero depending on when you ask. A pressed point is neither — it is
+ * already a fact by the time the handler runs, and the menu lands under the
+ * finger, which is where it was wanted.
+ */
+export const pointAnchor = (event) =>
+  frozenAnchor({
+    top: event.clientY,
+    bottom: event.clientY,
+    left: event.clientX,
+    right: event.clientX,
+    width: 0,
+    height: 0,
+  });
+
+/**
  * A small menu anchored under the control that opened it — never a panel across
  * the screen. Closes on the next click anywhere, and a second click on the
  * control that opened it closes it too (toggle).

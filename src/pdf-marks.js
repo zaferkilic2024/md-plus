@@ -24,7 +24,7 @@ import { palettesSuppressed } from "./palette.js";
 import { makeAnchor, readSidecar, resolveAnchor, writeSidecar } from "./sidecar.js";
 import { t } from "./i18n.js";
 import { movedTo } from "./citation.js";
-import { frozenAnchor, popover } from "./popover.js";
+import { pointAnchor, popover } from "./popover.js";
 import { fileNameOf } from "./paths.js";
 
 /** A click, as a box the strip can be hung on. */
@@ -533,10 +533,10 @@ export class PdfMarkStore {
         const hedefler = movedTo(spot?.record);
         if (!hedefler.length) return;
 
-        // Measured before anything repaints: the badge is redrawn with its page
-        // and would answer 0,0 afterwards, putting the menu in the window's
-        // corner (marks.js says the same thing at more length).
-        const at = badge.getBoundingClientRect();
+        // The pressed point, not the badge: a badge is redrawn with its page
+        // and its position is written a frame late, so its rect is either stale
+        // or zero depending on when you ask (marks.js says this at more length).
+        const at = pointAnchor(event);
         this.hidePalette();
         this.strip.hide();
 
@@ -545,7 +545,7 @@ export class PdfMarkStore {
           return;
         }
         popover(
-          frozenAnchor(at),
+          at,
           [...hedefler].reverse().map((each) => ({
             label: fileNameOf(each.hedefBelge),
             run: () => this.onFollowTarget?.(each.hedefBelge),

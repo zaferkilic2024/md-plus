@@ -17,7 +17,7 @@ import { hidePalettes } from "./palette.js";
 import { Strip } from "./strip.js";
 import { t } from "./i18n.js";
 import { movedTo } from "./citation.js";
-import { frozenAnchor, popover } from "./popover.js";
+import { pointAnchor, popover } from "./popover.js";
 import { fileNameOf } from "./paths.js";
 
 const newId = () => `i_${Math.random().toString(36).slice(2, 8)}`;
@@ -528,13 +528,21 @@ export class MarkStore {
       const hedefler = movedTo(record);
       if (!hedefler.length) return;
 
-      // MEASURED FIRST, and this is not tidiness. `strip.hide()` repaints, a
-      // repaint rebuilds the widgets, and the badge this menu hangs on is one
-      // of them — asked for its rect afterwards it answers 0,0 and the menu
-      // opens in the window's top-left corner (Zafer, 3 Ağu). Same shape as the
-      // recorded trap "do not carry a computed position across an await": the
-      // thing you measured has to still be the thing that is there.
-      const spot = badge.getBoundingClientRect();
+      // THE MENU HANGS ON THE POINT THAT WAS PRESSED, not on the badge.
+      //
+      // Two goes at asking the badge, two ways of being wrong. Asked AFTER
+      // `strip.hide()` it answered 0,0 — the repaint had already rebuilt the
+      // widget — and the menu opened in the window's corner. Asked before, it
+      // answered with a STALE position: a badge's `top` is written a frame
+      // late (surface.js/badgeLayout measures in requestMeasure), and hovering
+      // the comment badge repaints, so a click landing inside that frame read
+      // the previous number. It only went wrong after touching the comment,
+      // which is exactly what Zafer saw.
+      //
+      // A pressed point cannot be stale and cannot be rebuilt. The menu opens
+      // under the finger, which is where it was wanted anyway — the same thing
+      // the right-click menu does with the same helper.
+      const spot = pointAnchor(event);
       this.strip.hide();
 
       if (hedefler.length === 1) {
@@ -543,7 +551,7 @@ export class MarkStore {
       }
       // Newest first: the last place a piece went is the one being worked in.
       popover(
-        frozenAnchor(spot),
+        spot,
         [...hedefler].reverse().map((each) => ({
           label: fileNameOf(each.hedefBelge),
           run: () => this.onFollowTarget?.(each.hedefBelge),
