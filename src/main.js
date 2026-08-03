@@ -861,6 +861,8 @@ function createTab({ path, text }) {
       await saveTab(tab);
       return Boolean(tab.path);
     },
+    // The arrow on a badge: the documents this passage was moved into.
+    onFollowTarget: (path) => chromeDeps.onFollowTarget(path, null),
   });
 
   // The marks tool on the strip follows this document's mark count.
@@ -952,6 +954,8 @@ async function createPdfTab(path) {
     say: (message) => {
       statusEl.textContent = message;
     },
+    // The arrow on a badge, exactly as a document's (behaviour parity).
+    onFollowTarget: (path) => chromeDeps.onFollowTarget(path, null),
   });
   tab.marks.onCount = () => chrome.updateMarksTool();
   await tab.marks.load();

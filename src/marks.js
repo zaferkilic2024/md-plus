@@ -16,6 +16,9 @@ import { liveMarks, setMarks } from "./surface.js";
 import { hidePalettes } from "./palette.js";
 import { Strip } from "./strip.js";
 import { t } from "./i18n.js";
+import { movedTo } from "./citation.js";
+import { popover } from "./popover.js";
+import { fileNameOf } from "./paths.js";
 
 const newId = () => `i_${Math.random().toString(36).slice(2, 8)}`;
 
@@ -25,11 +28,13 @@ export class MarkStore {
    * @param {object} deps
    * @param {(message: string) => void} deps.say
    * @param {() => Promise<boolean>} deps.ensureSaved  marks live beside the file
+   * @param {(path: string) => void} [deps.onFollowTarget]  where a moved piece went
    */
-  constructor(tab, { say, ensureSaved }) {
+  constructor(tab, { say, ensureSaved, onFollowTarget }) {
     this.tab = tab;
     this.say = say;
     this.ensureSaved = ensureSaved;
+    this.onFollowTarget = onFollowTarget;
 
     /** The sidecar's records: id, anchor, comment, transfer. */
     this.records = [];
@@ -249,6 +254,9 @@ export class MarkStore {
             from: each.from,
             to: each.to,
             yorumlu: Boolean(meta.get(each.id).yorum) || this.openId === each.id,
+            // Where this passage went, if anywhere — the margin says it now
+            // (3 Ağu). A trace of the text belongs beside the text.
+            tasindi: movedTo(meta.get(each.id)).length,
             etkin: each.id === etkin,
           })),
       ),
@@ -506,6 +514,32 @@ export class MarkStore {
     // position is under it answers with the nearest line — not with the mark it
     // belongs to. It says which mark it is; take its word for it.
     const badge = event.target.closest?.(".cm-rozet");
+
+    // The arrow half of the badge is its own door: it is about the DOCUMENTS
+    // this passage went into, not about the passage's comment. Pressed, it goes
+    // there — one destination straight away, several through a menu, because a
+    // piece can be moved as many times as the writer likes and the record now
+    // keeps all of them.
+    if (badge && event.target.closest?.(".cm-rozet-sent")) {
+      const record = this.records.find((each) => each.id === badge.dataset.mark);
+      const hedefler = movedTo(record);
+      if (!hedefler.length) return;
+
+      this.strip.hide();
+      if (hedefler.length === 1) {
+        this.onFollowTarget?.(hedefler.at(-1).hedefBelge);
+        return;
+      }
+      // Newest first: the last place a piece went is the one being worked in.
+      popover(
+        badge,
+        [...hedefler].reverse().map((each) => ({
+          label: fileNameOf(each.hedefBelge),
+          run: () => this.onFollowTarget?.(each.hedefBelge),
+        })),
+      );
+      return;
+    }
 
     // A selection is the palette's business, and in Aktarma the palette already
     // carries "Taşı" for the mark it stands in (KR-71). Without this the two

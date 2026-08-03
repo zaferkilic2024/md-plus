@@ -322,32 +322,19 @@ export function createChrome({
     // text, or the anchor itself while that page is still undrawn). Asking
     // `list()` here used to hide a PDF's marks until their page happened to be
     // on screen, which greyed the tool on a document that plainly had marks.
-    // Where a mark WENT, beside what it says (3 Ağu). The record has carried
-    // this since the first sidecar was written — `aktarma.hedefBelge`, the
-    // document a piece was moved into — and until now nothing showed it. So the
-    // question "which passages did I take out of this source, and where did
-    // they land?" had no answer anywhere in the app, while the answer sat in a
-    // file next to the document.
-    //
-    // No new screen, no new record, no new store: a second word on a row that
-    // was already there. Reading it left to right gives the whole sentence —
-    // the passage, then the document it became part of.
+    // Where a mark WENT is NOT here (3 Ağu). It was, for one afternoon, as a
+    // second word on each row — and Zafer moved it out: "işaretler listesi
+    // doğru bir yer değil". He is right, and the reason is worth keeping. This
+    // list is a way to REACH marks; a destination is a fact ABOUT one, and a
+    // fact about the text belongs beside the text. It lives in the margin now,
+    // as a second glyph on the badge (surface.js/BadgeWidget).
     const menu = popover(
       marksTool,
-      tab.marks.listing().map(({ record, text }) => {
-        const hedef = record.aktarma?.hedefBelge;
-        return {
-          icon: record.yorum ? "note" : undefined,
-          label: snippetOf(text),
-          run: () => tab.marks.travelTo(record.id),
-          // The file name alone on the row; the whole path waits in the tooltip.
-          // A relative path ("notlar/2026/denge.md") would push the passage off
-          // its own row, and the passage is what the row is about.
-          trail: hedef ? fileNameOf(hedef) : undefined,
-          trailTitle: hedef,
-          trailRun: () => onFollowTarget?.(hedef, null),
-        };
-      }),
+      tab.marks.listing().map(({ record, text }) => ({
+        icon: record.yorum ? "note" : undefined,
+        label: snippetOf(text),
+        run: () => tab.marks.travelTo(record.id),
+      })),
     );
     if (!menu) return; // second click toggled it shut
     menu.classList.add("marklist");

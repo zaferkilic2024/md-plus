@@ -2261,12 +2261,36 @@ body.dragging .body {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  width: 18px;
+  gap: 1px;
+  /* `auto`, not 18: the badge can carry a second glyph now (the arrow saying
+     this passage was moved), and a fixed width would clip it — the trap of a
+     fixed height swallowing a second line, one axis over. */
+  min-width: 18px;
   height: 18px;
   border-radius: var(--r1);
   background: transparent;
   color: var(--mark-edge);
   cursor: pointer;
+}
+/* Two glyphs are wider than the gutter the single one was sized for, so the
+   badge steps further out rather than leaning back over the prose. The reading
+   column is centred and the space to its right is the widest thing on screen. */
+.host .cm-rozet:has(.cm-rozet-sent):has(svg + svg),
+.panel .cm-rozet:has(.cm-rozet-sent):has(svg + svg) {
+  right: -52px;
+}
+.host .cm-rozet svg,
+.panel .cm-rozet svg {
+  flex: none;
+  width: 15px;
+  height: 15px;
+}
+/* The arrow's own half — pressing it is a different question from pressing the
+   bubble ("where did this go" against "what did I say about it"), so it has to
+   be hit-testable on its own. */
+.cm-rozet-sent {
+  display: inline-flex;
+  line-height: 0;
 }
 /* It answers when reached for, in the mark's ground — the same yellow the text
    behind it is wearing. */
@@ -2508,35 +2532,6 @@ body.dragging .body {
 }
 .suggestion-actions .suggestion-model {
   font-size: 11px;
-}
-
-/* Where a marked passage went — the second half of a marks-list row (KR-81's
-   record, finally readable). Quiet: the passage is what the row is about and
-   must stay the loudest thing on it, so this is the label size, one step down
-   the ramp, and it only takes on the accent when pointed at. `flex: none` and
-   the max-width keep a long file name from eating the passage's half.
-
-   `.popover .popover-trail`, not `.popover-trail`: `.popover button` is a class
-   plus a type (0,1,1) and beats a lone class (0,1,0). Written the short way,
-   this row's 9px padding and 13.5px size would win and the name would come out
-   as loud as the passage. Same trap as .popover-drop, five doors down. */
-.popover .popover-trail {
-  flex: none;
-  max-width: 42%;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-  width: auto;
-  padding: 0 8px 0 4px;
-  border: 0;
-  background: none;
-  font-size: 11px;
-  color: var(--n5);
-  cursor: pointer;
-}
-.popover .popover-trail:hover {
-  color: var(--accent);
-  text-decoration: underline;
 }
 
 /* "This may not have fit" — between the control line and the answer, because a
@@ -3710,7 +3705,10 @@ body.dragging .body {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  width: 18px;
+  gap: 1px;
+  /* `auto`, as in a document: the badge may carry a second glyph — the arrow
+     saying this passage was moved somewhere. A fixed width would clip it. */
+  min-width: 18px;
   height: 18px;
   padding: 0;
   border: 0;
@@ -3719,6 +3717,15 @@ body.dragging .body {
   color: var(--mark-edge);
   cursor: pointer;
   pointer-events: auto;
+}
+.pdf-badge svg {
+  flex: none;
+}
+/* Its own element so a press can tell the two halves apart: the arrow asks
+   "where did this go", the bubble "what did I write about it". */
+.pdf-badge-sent {
+  display: inline-flex;
+  line-height: 0;
 }
 .pdf-badge:hover {
   background: var(--mark);

@@ -177,3 +177,37 @@ export function quotedPiece(piece, { href = null, cite = "" } = {}) {
  * the last `|` is not part of the table), and an empty quote line.
  */
 const canCarry = (row) => !/^>\s*(```|~~~)/.test(row) && !/\|\s*$/.test(row) && row.trim() !== ">";
+
+/**
+ * Bu işaret nerelere taşındı?
+ *
+ * Kayıt 3 Ağu'ya dek TEK bir hedef tutuyordu ve her taşımada üzerine yazıyordu
+ * (`record.aktarma = {...}`). Oysa "istediğin kadar tekrar taşınabilir" kuralı
+ * ta baştan vardı: aynı pasajı üç belgeye gönderen yazar, kayıtta yalnız
+ * sonuncusunu buluyordu. Kayıt kuralın gerisinde kalmıştı ve bunu kimse
+ * göremiyordu, çünkü kaydı gösteren bir yer yoktu (Zafer: "10 tane hedef
+ * olursa ne yapacaksın?").
+ *
+ * Artık liste. Eski kayıtlar tek nesne olarak duruyor ve öyle de okunuyor —
+ * yan kayıt kullanıcının diskinde yaşar, bir sürüm yükseltmesi onu bozamaz.
+ *
+ * @returns {Array<{hedefBelge: string, zaman?: string}>} en eskiden en yeniye
+ */
+export function movedTo(record) {
+  const a = record?.aktarma;
+  if (!a) return [];
+  return (Array.isArray(a) ? a : [a]).filter((each) => each?.hedefBelge);
+}
+
+/**
+ * Bir taşımayı kayda ekler ve YENİ listeyi döndürür (kaydı değiştirmez).
+ *
+ * Aynı hedefe ikinci kez taşımak yeni satır açmaz, o satırın zamanını tazeler
+ * ve onu sona alır: liste "nerelere gitti" sorusunun cevabı, "kaç kez
+ * bastım"ın değil. Sıra son taşımayı sonda tutar, çünkü gösterilen tek ad
+ * sonuncusu olacak.
+ */
+export function withMove(record, hedefBelge, zaman = new Date().toISOString()) {
+  const kalan = movedTo(record).filter((each) => each.hedefBelge !== hedefBelge);
+  return [...kalan, { hedefBelge, zaman }];
+}

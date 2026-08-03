@@ -29,7 +29,7 @@ import { closeAllSearch } from "./search.js";
 import { setReadOnly } from "./surface.js";
 import { iconAction } from "./strip.js";
 import { passageMarkdown } from "./pdf-text.js";
-import { citeText, fragmentFor, headingTrail, quotedPiece } from "./citation.js";
+import { citeText, fragmentFor, headingTrail, quotedPiece, withMove } from "./citation.js";
 import { relativePath } from "./storage.js";
 import { fileNameOf } from "./paths.js";
 import { t } from "./i18n.js";
@@ -472,9 +472,14 @@ export class Transfer {
       this.citeFor(at),
     );
 
-    // The mark records where it was last sent — and nothing about the text over
-    // there, whose fate we no longer follow (KR-33).
-    record.aktarma = { hedefBelge: this.target.path, zaman: new Date().toISOString() };
+    // The mark records EVERY document it was sent into — and nothing about the
+    // text over there, whose fate we no longer follow (KR-33).
+    //
+    // It used to keep only the last one, overwriting on each move, while the
+    // rule "a piece may be moved as many times as you like" had been in place
+    // from the start. Nobody noticed because nothing showed the record; the
+    // margin does now (Zafer, 3 Ağu: "10 tane hedef olursa ne yapacaksın?").
+    record.aktarma = withMove(record, this.target.path);
     await this.marks.write();
 
     this.marks.strip.hide();

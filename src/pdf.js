@@ -1186,12 +1186,17 @@ export async function createPdfSurface({ parent, data, onPage, onPaint, onZoom }
           // column instead of trailing the prose wherever it happens to end.
           // Only a commented mark has one — colour already says "marked", the
           // badge says "there is something written about this".
-          if (mark.note && first) {
+          if ((mark.note || mark.moved) && first) {
             const badge = document.createElement("button");
             badge.className = "pdf-badge";
             badge.dataset.mark = mark.id;
-            badge.title = t("palette.comment");
-            badge.innerHTML = icon(GLYPH.note, 13);
+            badge.title = mark.note ? t("palette.comment") : t("mark.movedTo");
+            // Arrow first, bubble second — the same order and the same two
+            // drawings a document's badge uses (surface.js/BadgeWidget): where
+            // the TEXT went leads, what was said about it follows.
+            badge.innerHTML =
+              (mark.moved ? `<i class="pdf-badge-sent" data-sent="1">${icon(GLYPH.send, 13)}</i>` : "") +
+              (mark.note ? icon(GLYPH.note, 13) : "");
             badge.style.top = `${first.top - page.top}px`;
             slot.marks.append(badge);
           }

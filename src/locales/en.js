@@ -135,6 +135,7 @@ export const en = {
   "palette.mark": "Mark · Ctrl+Enter",
   "palette.markComment": "Mark and comment",
   "palette.markRemove": "Remove mark",
+  "mark.movedTo": "Where this piece went",
   "palette.comment": "Comment",
   "palette.aiTitle": "AI suggestions",
 

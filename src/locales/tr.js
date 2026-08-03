@@ -136,6 +136,7 @@ export const tr = {
   "palette.mark": "İşaretle · Ctrl+Enter",
   "palette.markComment": "İşaretle ve yorumla",
   "palette.markRemove": "İşareti sil",
+  "mark.movedTo": "Bu parçanın gittiği yer",
   "palette.comment": "Yorumla",
   "palette.aiTitle": "Yapay zekâ önerileri",
 

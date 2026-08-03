@@ -158,29 +158,60 @@ export const setMarks = StateEffect.define();
 const marked = Decoration.mark({ class: "cm-isaretli" });
 const current = Decoration.mark({ class: "cm-isaretli cm-isaretli-etkin" });
 
-/** The inline badge a comment opens from (UC-14-K2: one click, no side panel). */
+const glyph = (paths) =>
+  `<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">${paths}</svg>`;
+
+/**
+ * The badge in the margin: what this mark carries (UC-14-K2 — one click, no
+ * side panel).
+ *
+ * TWO things can hang here now, and they are different sentences:
+ *
+ *   the bubble — this mark has a comment (GLYPH.note, the same drawing the
+ *                palette's "Yorumla" wears).
+ *   the arrow  — this passage was MOVED somewhere (GLYPH.send, the drawing
+ *                Aktarma sends with). Added 3 Ağu: the record has always known
+ *                where a piece went, and the only place that showed it was a
+ *                menu. "İşaretler listesi doğru bir yer değil" (Zafer) — a
+ *                trace of the text belongs beside the text.
+ *
+ * A mark can wear both, one, or neither. They sit in one widget rather than two
+ * because the margin has one column and two widgets would each want it: one
+ * badge, one anchor, one place for the strip to open against.
+ */
 class BadgeWidget extends WidgetType {
-  constructor(id) {
+  constructor(id, note, moved) {
     super();
     this.id = id;
+    this.note = note;
+    this.moved = moved;
   }
-  // The id alone: the badge's DOM does not carry the comment (the strip shows
-  // it, B-19), so a changed comment must not rebuild the widget — every
-  // needless rebuild is DOM churn next to a focused comment box (B-24).
+  // The id and WHAT IS DRAWN — not the comment's text (the strip shows that,
+  // B-19), so editing a comment must not rebuild the widget: every needless
+  // rebuild is DOM churn next to a focused comment box (B-24). But gaining a
+  // comment or a destination changes the drawing, and that has to redraw.
   eq(other) {
-    return other.id === this.id;
+    return other.id === this.id && other.note === this.note && other.moved === this.moved;
   }
   toDOM() {
     const badge = document.createElement("span");
     badge.className = "cm-rozet";
     badge.dataset.mark = this.id;
 
-    // A speech bubble, not a dot: the badge should say what it is before you
-    // touch it. Drawn, not filled — a solid 16px ochre tile with a white glyph
-    // squeezed inside came out as a muffled blob at this size, and it was the
-    // heaviest thing in the margin. The glyph comes from GLYPH.note, the same
-    // one the palette's "Yorumla" wears: one idea, one drawing.
-    badge.innerHTML = `<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">${GLYPH.note}</svg>`;
+    // Drawn, not filled — a solid 16px ochre tile with a white glyph squeezed
+    // inside came out as a muffled blob at this size, and it was the heaviest
+    // thing in the margin.
+    //
+    // The arrow leads when both are there: it is about where the TEXT went,
+    // and the comment is a note about the text. Its own element, its own class,
+    // so a click can tell which of the two was pressed.
+    if (this.moved) {
+      badge.insertAdjacentHTML(
+        "beforeend",
+        `<i class="cm-rozet-sent" data-sent="1">${glyph(GLYPH.send)}</i>`,
+      );
+    }
+    if (this.note) badge.insertAdjacentHTML("beforeend", glyph(GLYPH.note));
 
     // The comment itself is NOT drawn here. Hovering opens the strip as a
     // preview (marks.js/onHover) — the same box a click opens, in the same spot.
@@ -229,10 +260,10 @@ function paint(marks) {
     // The badge hangs in the margin beside the mark's FIRST line, not inline at
     // its end: inline, the badges landed wherever the prose happened to stop, so
     // a column of comments read as scattered debris. Out here they line up.
-    if (mark.yorumlu) {
+    if (mark.yorumlu || mark.tasindi) {
       decorations.push(
         Decoration.widget({
-          widget: new BadgeWidget(mark.id),
+          widget: new BadgeWidget(mark.id, Boolean(mark.yorumlu), Boolean(mark.tasindi)),
           side: -1,
         }).range(mark.from),
       );

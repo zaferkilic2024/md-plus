@@ -23,6 +23,9 @@ import { GLYPH, Strip, icon } from "./strip.js";
 import { palettesSuppressed } from "./palette.js";
 import { makeAnchor, readSidecar, resolveAnchor, writeSidecar } from "./sidecar.js";
 import { t } from "./i18n.js";
+import { movedTo } from "./citation.js";
+import { popover } from "./popover.js";
+import { fileNameOf } from "./paths.js";
 
 /** A click, as a box the strip can be hung on. */
 const pointRect = (event) => ({
@@ -36,10 +39,11 @@ const newId = () => `m${Date.now().toString(36)}${Math.random().toString(36).sli
 
 export class PdfMarkStore {
   /** @param {{ path: string, pdf: any }} tab the PDF tab this belongs to */
-  constructor(tab, { say } = {}) {
+  constructor(tab, { say, onFollowTarget } = {}) {
     this.tab = tab;
     this.pdf = tab.pdf;
     this.say = say ?? (() => {});
+    this.onFollowTarget = onFollowTarget;
     this.records = [];
     this.placed = new Map(); // id -> { page, from, to }
     this.face = "sekme";
@@ -178,6 +182,12 @@ export class PdfMarkStore {
             // where the comment will live. It goes again on close if nothing
             // was written (onHide → repaint).
             note: Boolean(each.record.yorum?.metin) || each.id === this.openId,
+            // The same second glyph a document's badge grew (3 Ağu): where this
+            // passage was moved. Behaviour parity with .md is not a nicety here
+            // — it has broken five separate ways in one round before, each for
+            // its own reason, and every one of them started as "the PDF draws
+            // its own badge, so it only needs the obvious half".
+            moved: movedTo(each.record).length,
           })),
       );
     }
@@ -512,6 +522,30 @@ export class PdfMarkStore {
       // acted on by selecting it exactly end to end (Zafer, 28 Tem).
       const live = this.pdf.selectionRange() ?? this.lastRange;
       const badge = event.target.closest?.(".pdf-badge");
+
+      // The arrow half of the badge asks a different question from the bubble:
+      // "where did this passage go", not "what did I write about it". Same door,
+      // same behaviour, same order as a document's (marks.js/onClick).
+      if (!live && badge && event.target.closest?.(".pdf-badge-sent")) {
+        const spot = this.byId(badge.dataset.mark);
+        const hedefler = movedTo(spot?.record);
+        if (!hedefler.length) return;
+
+        this.hidePalette();
+        this.strip.hide();
+        if (hedefler.length === 1) {
+          this.onFollowTarget?.(hedefler.at(-1).hedefBelge);
+          return;
+        }
+        popover(
+          badge,
+          [...hedefler].reverse().map((each) => ({
+            label: fileNameOf(each.hedefBelge),
+            run: () => this.onFollowTarget?.(each.hedefBelge),
+          })),
+        );
+        return;
+      }
       // In the TAB, only the badge opens anything: pressing marked text does
       // nothing at all, exactly as in a document (marks.js/onClick returns null
       // there). Aktarma is the screen where pressing the piece means something —
