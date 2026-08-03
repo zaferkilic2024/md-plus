@@ -419,11 +419,13 @@ export class MarkStore {
 
     // Where the strip anchors is the face's affair (B-21, strip.js/place).
     //
-    // sekme: its top-right corner meets the badge. From a click on the badge we
-    // have its rect; otherwise the badge was just drawn but its measured position
-    // may lag a frame, so we compute its spot instead of reading a stale rect:
-    // the mark's first line (vertical), the line's right edge + the badge's own
-    // -34px margin (horizontal).
+    // sekme: its top-left corner meets the comment badge, which since 3 Ağu
+    // hangs in the LEFT margin (the right one carries "where this passage
+    // went"). From a click on the badge we have its rect; otherwise the badge
+    // was just drawn but its measured position may lag a frame, so we compute
+    // its spot instead of reading a stale rect: the mark's first line
+    // (vertical), the line's left edge minus the badge's own 34px margin
+    // (horizontal).
     //
     // aktarma: it opens at the mark itself — the caller may hand in the click
     // point; travelling hands in nothing and the mark's first line serves.
@@ -446,8 +448,11 @@ export class MarkStore {
         const dom = view.domAtPos(at.from);
         const node = dom.node.nodeType === 3 ? dom.node.parentElement : dom.node;
         const lineEl = node?.closest?.(".cm-line");
-        const lineRight = lineEl ? lineEl.getBoundingClientRect().right : box.right - 46;
-        coords = { top: line.top, bottom: line.bottom, right: lineRight + 34 };
+        const lineLeft = lineEl ? lineEl.getBoundingClientRect().left : box.left + 46;
+        // The comment badge's own spot: 34px out into the left margin, which is
+        // the number its CSS uses. Computed rather than read, because a badge
+        // drawn this frame has not been measured yet.
+        coords = { top: line.top, bottom: line.bottom, left: lineLeft - 34 };
       }
     }
 

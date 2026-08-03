@@ -406,16 +406,21 @@ export class Strip {
     // the scroller: without this the strip opened a screenful above the passage,
     // out of sight, and reads as "Taşı çıkmıyor" (Zafer, 28 Tem).
     const top = coords.bottom - box.top + host.scrollTop + 4;
-    // The geometry follows the CONTENT, not the face (28 Tem). A comment — read
-    // or being written — always hangs off the badge, on both screens, because
-    // that is the icon it belongs to and the one the writer just pressed. Only
-    // Aktarma's bare "Taşı" keeps the click-side rule: it belongs beside the
-    // mark you pressed, not out in the margin (B-21).
-    const commentBox = this.dom.querySelector(".note-comment, .note-writing");
-    const left =
-      (this.face === "aktarma" && !commentBox
-        ? coords.left - box.left
-        : coords.right - box.left - width) + host.scrollLeft;
+    // One rule now: the box's LEFT edge meets the anchor, and it opens
+    // rightward. It used to hang its right edge off `coords.right` instead,
+    // because the comment badge lived in the RIGHT margin and a box opening
+    // rightward from there would have run off the surface.
+    //
+    // 3 Ağu moved the comment badge to the left margin (the right one now
+    // carries "where this passage went"), and the old rule quietly went wrong
+    // with it: the box lined its right edge up with the badge, so it opened
+    // over the prose and read as belonging to the OTHER badge — the one it has
+    // nothing to do with (Zafer: "yorumun kutusu künye rozetinin altında
+    // çıktı").
+    //
+    // Aktarma's bare "Taşı" always used this rule (B-21: beside the mark you
+    // pressed). Both faces say the same thing now, which is one rule fewer.
+    const left = coords.left - box.left + host.scrollLeft;
     this.dom.style.top = `${Math.max(host.scrollTop + 8, top)}px`;
     // Both edges, against the MEASURED width (the hand-written-number clamp is
     // a documented trap): a preview anchored on a margin badge opens rightward
