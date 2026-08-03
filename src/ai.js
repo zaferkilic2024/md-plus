@@ -762,6 +762,11 @@ function configFor(baglanti, model) {
     // separately from `ucretli` because "may cost money" would be the wrong
     // sentence for someone who has already paid.
     abonelik: !!p.abonelik,
+    // The road the answer took, for the card to show in front of the model name.
+    // The writer's own name for the connection wins: it is the word they will
+    // recognise. A model name alone cannot say which road it came by, and the
+    // roads differ in who pays and what leaves the machine.
+    baglantiAdi: (baglanti.ad ?? "").trim() || providerLabel(p),
     agaCikar,
   };
 }
@@ -830,7 +835,7 @@ export async function suggest(job, text, { signal, options } = {}) {
   // A report is never taken into the document, so there is nothing for the gate
   // to protect. It is shown as what it is: an unverified claim (KR-49).
   if (JOBS[job].tur === "rapor") {
-    return { rapor: cikti, sure, kullanim, model: kapi.model, uzun };
+    return { rapor: cikti, sure, kullanim, model: kapi.model, via: kapi.baglantiAdi, uzun };
   }
 
   // The gate stands here, not in the interface: a damaged suggestion is never
@@ -849,6 +854,7 @@ export async function suggest(job, text, { signal, options } = {}) {
     kullanim,
     uzun,
     model: kapi.model, // shown at the far right of the card's control line
+    via: kapi.baglantiAdi,
   };
 }
 

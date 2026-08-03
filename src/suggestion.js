@@ -140,7 +140,7 @@ export class Suggestion {
    * global notice will replace them, see YAPILACAKLAR). The header now matches the
    * text cards: job, time, tokens and model on top; body below; buttons at foot.
    */
-  showReport({ rapor, sure, kullanim, model, uzun }) {
+  showReport({ rapor, sure, kullanim, model, via, uzun }) {
     this.dom.replaceChildren();
     this.dom.hidden = false;
     this.dom.className = "suggestion report";
@@ -161,7 +161,7 @@ export class Suggestion {
     // are being pulled out app-wide, to be replaced by one notice in a corner of
     // the app once it is complete. See YAPILACAKLAR. The report stays read-only
     // (no "accept"), which is the behaviour KR-49 turned on; only the words go.
-    kontrol.append(baslik, olcu, modelEtiketi(model));
+    kontrol.append(baslik, olcu, modelEtiketi(model, via));
 
     const govde = document.createElement("div");
     govde.className = "suggestion-body report-body";
@@ -254,7 +254,7 @@ export class Suggestion {
    * nothing lines up with what it replaces. Stacked, the eye scans down and
    * finds the difference.
    */
-  showSuggestion({ metin, bayraklar, kelime, sure, kullanim, model, uzun }) {
+  showSuggestion({ metin, bayraklar, kelime, sure, kullanim, model, via, uzun }) {
     this.dom.replaceChildren();
     this.dom.hidden = false;
     this.dom.className = "suggestion open";
@@ -292,7 +292,7 @@ export class Suggestion {
 
     // The model that produced this, at the far right of the line — so you always
     // know which one you are judging (what the writer asked for, twice).
-    kontrol.append(modelEtiketi(model));
+    kontrol.append(modelEtiketi(model, via));
 
     // ---- the text itself, with the flagged words underlined ----
     const govde = document.createElement("div");
@@ -491,12 +491,25 @@ function lengthNotice(uzun) {
   return [satir];
 }
 
-/** The model's name, pushed to the far right of the control line. */
-function modelEtiketi(model) {
+/**
+ * Which model answered — and, before it, through WHICH connection.
+ *
+ * The model name alone is not an answer to "where did this come from". The same
+ * name reaches the app by more than one road: "Gemini 3.5 Flash" can arrive over
+ * a Google API key or through an agent installed on this machine, and the two
+ * differ in everything that matters — who is billed, what leaves the computer,
+ * which account's limits apply. A card that says only the model looks like an
+ * API call whatever it was (Zafer, 3 Ağu).
+ *
+ * So the connection leads and the model follows. The connection is the one the
+ * writer named in Settings, because that is the word they will recognise; with
+ * no name of their own it falls back to the provider's.
+ */
+function modelEtiketi(model, via = null) {
   const el = document.createElement("span");
   el.className = "suggestion-model";
-  el.textContent = model ?? "";
-  el.title = model ?? "";
+  el.textContent = via ? `${via} · ${model ?? ""}` : (model ?? "");
+  el.title = el.textContent;
   return el;
 }
 

@@ -57,7 +57,27 @@
             "--disable-slash-commands"
           ]
         },
-        { "name": "agy-models", "cmd": "agy", "args": ["models"] }
+        { "name": "agy-models", "cmd": "agy", "args": ["models"] },
+        {
+          "name": "codex",
+          "cmd": "codex",
+          "args": [
+            "exec",
+            "--json",
+            "--skip-git-repo-check",
+            "--ephemeral",
+            "--ignore-user-config",
+            "--ignore-rules",
+            "-s",
+            "read-only",
+            "--color",
+            "never",
+            "-m",
+            { "validator": "[a-zA-Z0-9._-]+" },
+            { "validator": "[\\s\\S]+" }
+          ]
+        },
+        { "name": "codex-version", "cmd": "codex", "args": ["--version"] }
       ]
     },
     {

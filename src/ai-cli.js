@@ -258,7 +258,121 @@ export const providers = [
     // yok (kart token satırını göstermez, claude-cli'deki bedel gibi değil).
     parse: (stdout) => ({ metin: stdout.trim(), kullanim: null }),
   },
+
+  // Codex CLI — gerçek çıktıyla DOĞRULANDI (3 Ağu 2026, codex-cli 0.146.0).
+  // Ölçülenler: `codex exec` non-interactive kapı; `--json` JSONL olay akışı
+  // verir ve cevabı `item.completed`/`agent_message` taşır; `--version` exit 0
+  // ile sürüm basar (probe için yeter); geçersiz model `turn.failed` doğurur.
+  {
+    id: "codex-cli",
+    ad: "Codex",
+    anahtarli: false,
+    protokol: "cli",
+    command: "codex",
+    abonelik: true,
+    maxLength: 20000,
+    probe: { name: "codex-version", args: ["--version"] },
+    // Model listesi komutu YOK. Listede yalnız çalıştığı görülen model var —
+    // "test edemediklerimizi koyma" (Zafer). Hesabın desteklemediği bir ad
+    // 400 ile döner, yani uydurulan satır kullanıcıya hata olarak çıkardı.
+    fixedModels: ["gpt-5.6-sol"],
+    //
+    // Bayrakların her biri bir şeyi kapatıyor ve hiçbiri süs değil:
+    //   --json              çıktı ayrıştırılabilir olsun (banner + cevabın iki
+    //                       kez basıldığı düz metni okumak kırılgandı).
+    //   -s read-only        modelin ürettiği kabuk komutları yazamasın. Codex'te
+    //                       araçları tamamen kapatan bir bayrak yok; en dar
+    //                       politika bu. Okuma kalıyor — bu yüzden çalışma kökü
+    //                       de daraltılmalı (aşağıda -C).
+    //   --ignore-user-config  kullanıcının `config.toml`'u isteğe binmesin.
+    //   --ignore-rules      proje/kullanıcı `.rules` dosyaları da öyle. (Aynı
+    //                       tuzağın Claude Code'daki hali CLAUDE.md'de kayıtlı:
+    //                       ajan çalışma dizininden yukarı doğru talimat arar.)
+    //   --ephemeral         oturum dosyası diske yazılmasın; bu bir sohbet değil.
+    //   --skip-git-repo-check  belge bir git deposunda olmak zorunda değil.
+    //   --color never       ANSI kaçışları JSON'a bulaşmasın.
+    args: (model, prompt) => [
+      "exec",
+      "--json",
+      "--skip-git-repo-check",
+      "--ephemeral",
+      "--ignore-user-config",
+      "--ignore-rules",
+      "-s",
+      "read-only",
+      "--color",
+      "never",
+      "-m",
+      model,
+      prompt,
+    ],
+    /**
+     * JSONL: her satır bir olay. Bizi ilgilendiren iki tanesi — ajanın mesajı
+     * ve turun kullanımı. Satır satır okunur, çünkü akışın başında JSON olmayan
+     * satırlar da var ("Reading additional input from stdin…") ve tek bir
+     * `JSON.parse(stdout)` onlara çarpıp her cevabı düşürürdü.
+     *
+     * Son `agent_message` kazanır: ajan ara mesaj üretebilir, sonuncusu cevaptır.
+     *
+     * Hata olayı sessizce geçilmez. `item.completed`/`error` yalnızca bir uyarı
+     * olabilir (bilinmeyen model için "fallback metadata" der ve devam eder);
+     * turu gerçekten düşüren `turn.failed`'dır — ayrımı korumak, uyarıyı hata
+     * diye göstermemek için.
+     */
+    parse: (stdout) => {
+      let metin = "";
+      let kullanim = null;
+      let hata = null;
+
+      for (const line of stdout.split("\n")) {
+        const trimmed = line.trim();
+        if (!trimmed.startsWith("{")) continue;
+
+        let event;
+        try {
+          event = JSON.parse(trimmed);
+        } catch {
+          continue;
+        }
+
+        if (event.type === "item.completed" && event.item?.type === "agent_message") {
+          metin = event.item.text ?? "";
+        } else if (event.type === "turn.completed" && event.usage) {
+          kullanim = {
+            giren: (event.usage.input_tokens ?? 0) + (event.usage.cached_input_tokens ?? 0),
+            cikan: event.usage.output_tokens ?? 0,
+            // Abonelikten düşer, cepten değil — kart bedel satırı göstermez.
+            bedel: null,
+          };
+        } else if (event.type === "turn.failed") {
+          hata = event.error?.message ?? "";
+        }
+      }
+
+      if (!metin) {
+        throw new Error(readCodexError(hata) || "Codex boş cevap verdi.");
+      }
+      return { metin, kullanim };
+    },
+  },
 ];
+
+/**
+ * Codex, sağlayıcının hata gövdesini bir JSON dizesi olarak kendi hata alanının
+ * İÇİNE koyar. Kullanıcıya `{"type":"error","status":400,…}` göstermek, hatayı
+ * hiç göstermemekten iyi değildir: içindeki cümle okunur, çıkmazsa ham hâli
+ * verilir — tahmin edilmiş bir mesajla değiştirilmez (B-26'nın dersi: 401
+ * dışında gövdeyi körlemesine yorumlama).
+ */
+function readCodexError(raw) {
+  if (!raw) return "";
+  try {
+    const inner = JSON.parse(raw);
+    return inner?.error?.message ?? raw;
+  } catch {
+    return raw;
+  }
+}
 
 /** The protocol → adapter entry the core merges into its dispatch table. */
 export const adapters = { cli: askCli };
