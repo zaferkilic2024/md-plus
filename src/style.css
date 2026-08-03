@@ -2510,6 +2510,29 @@ body.dragging .body {
   font-size: 11px;
 }
 
+/* "This may not have fit" — between the control line and the answer, because a
+   caveat under the text arrives after the reader has already believed it.
+   It borrows the warning tokens the refusal box uses (--warning-ground and its
+   edge): one warning colour in the app, wherever a warning happens to be. It is
+   a strip rather than a box because it qualifies the answer below it — it is
+   not a message in its own right. Only drawn when there is something to say. */
+.suggestion-notice {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  padding: 7px 15px;
+  background: var(--warning-ground);
+  border-bottom: 1px solid #eadcc2;
+  color: #7a5210;
+  font-size: 12.5px;
+  line-height: 1.45;
+}
+.suggestion-notice svg {
+  flex: none;
+  width: 15px;
+  height: 15px;
+}
+
 /* The suggestion itself, set like the document — you are judging prose, so it
    has to look like prose. */
 .suggestion-body {

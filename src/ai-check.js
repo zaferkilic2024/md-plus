@@ -298,3 +298,52 @@ function changedWords(source, suggestion) {
   }
   return birlesik;
 }
+
+/**
+ * Will this text fit in the model's context — or is it about to be cut off
+ * without anyone saying so?
+ *
+ * Why this exists: a local model given more than it can hold does not refuse.
+ * It silently drops what does not fit and answers confidently about the part it
+ * kept. A summary of the first third of a document looks exactly like a summary
+ * of the document. That is the worst failure this app can have — a wrong answer
+ * wearing the face of a right one.
+ *
+ * The estimate is deliberately crude. Counting tokens properly means shipping a
+ * tokeniser per provider, and the answer would still be a guess: we do not know
+ * what context the user configured on their side. So we count characters, and
+ * we say "may not fit" rather than "does not fit". The aim is not to block the
+ * call — it goes ahead either way — but to keep the writer from trusting a
+ * summary that only ever saw half the text.
+ *
+ * The Turkish ratio is why the thresholds are low: an agglutinative language
+ * spends roughly twice the tokens per word that English does, so the same
+ * document fills a context about twice as fast.
+ *
+ * @param {string} protocol wire protocol of the provider ("ollama", "cli", …)
+ * @param {string} text     what is about to be sent
+ * @returns {{chars: number, limit: number} | null} null when it comfortably fits
+ */
+export function contextRisk(protocol, text) {
+  const limit = CONTEXT_LIMITS[protocol] ?? CONTEXT_LIMITS.default;
+  const chars = (text ?? "").length;
+  return chars > limit ? { chars, limit } : null;
+}
+
+/**
+ * Characters, not tokens, and per protocol rather than per model.
+ *
+ * `ollama` is low because Ollama's own default context is 4096 tokens unless a
+ * model's Modelfile says otherwise — around two thousand words of Turkish, less
+ * than half of the 4.000-word document this project tests everything against.
+ * `cli` sits at its own hard wall already (the command line's length limit,
+ * checked where the command is built), so this only needs to catch what slips
+ * under it. Everything else is a hosted model with a context measured in the
+ * hundreds of thousands; the threshold there is a backstop for a small model
+ * behind an OpenAI-shaped endpoint, not a real expectation.
+ */
+const CONTEXT_LIMITS = {
+  ollama: 6000,
+  cli: 18000,
+  default: 120000,
+};

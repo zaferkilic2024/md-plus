@@ -8,7 +8,7 @@
 // button, no invitation, no nudge (KR-42). This file is not even reached.
 
 import { fetch as tauriFetch } from "@tauri-apps/plugin-http";
-import { hardGate, flags, wordCount } from "./ai-check.js";
+import { contextRisk, hardGate, flags, wordCount } from "./ai-check.js";
 import { effectiveLang, getSettings } from "./settings.js";
 import { detectTextLang } from "./lang-detect.js";
 import { t } from "./i18n.js";
@@ -776,10 +776,15 @@ export async function suggest(job, text, { signal, options } = {}) {
   cikti = tidy(cikti);
   const sure = Date.now() - basladi;
 
+  // Measured on what was sent, reported with what came back: a model handed
+  // more than it can hold answers just as confidently about the part it kept.
+  // The card says so; nothing is blocked (see contextRisk in ai-check.js).
+  const uzun = contextRisk(kapi.protokol, text);
+
   // A report is never taken into the document, so there is nothing for the gate
   // to protect. It is shown as what it is: an unverified claim (KR-49).
   if (JOBS[job].tur === "rapor") {
-    return { rapor: cikti, sure, kullanim, model: kapi.model };
+    return { rapor: cikti, sure, kullanim, model: kapi.model, uzun };
   }
 
   // The gate stands here, not in the interface: a damaged suggestion is never
@@ -796,6 +801,7 @@ export async function suggest(job, text, { signal, options } = {}) {
     kelime: wordCount(cikti),
     sure,
     kullanim,
+    uzun,
     model: kapi.model, // shown at the far right of the card's control line
   };
 }
@@ -831,7 +837,17 @@ async function askOllama(kapi, prompt, signal) {
       model: kapi.model,
       prompt,
       stream: false,
-      options: { temperature: 0.2 },
+      // num_ctx is asked for, not assumed. Ollama's default window is 4096
+      // tokens whatever the model can actually hold, and anything past it is
+      // dropped in silence — the summary comes back sounding certain about a
+      // document it only half read. Sized from the prompt (Turkish runs about
+      // three characters to the token) with room for the answer, and capped:
+      // a window costs memory, and one large enough to swap is worse than one
+      // that is honestly too small.
+      options: {
+        temperature: 0.2,
+        num_ctx: Math.min(16384, Math.max(4096, Math.ceil(prompt.length / 3) + 2048)),
+      },
     }),
     signal,
   });

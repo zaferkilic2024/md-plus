@@ -297,6 +297,9 @@ export const tr = {
   "provider.ozel": "Özel (OpenAI uyumlu)",
 
   // ---- YZ hata / durum mesajları (ai.js) ----
+  // Kesin konuşmuyor, çünkü kesin bilmiyoruz: kullanıcının kendi tarafında
+  // ayarladığı bağlam bize kapalı. Söylediği şey şu — burada güvenme, bak.
+  "ai.mayNotFit": "Metin modele sığmamış olabilir; cevap belgenin tamamını görmemiş olabilir.",
   "ai.err.off": "Yapay zekâ kapalı.",
   "ai.err.noSelection": "Önce metni seçin.",
   "ai.err.noModel": "Model seçilmedi — Ayarlar'dan seçin.",

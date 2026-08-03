@@ -296,6 +296,9 @@ export const en = {
   "provider.ozel": "Custom (OpenAI-compatible)",
 
   // ---- AI error / status messages (ai.js) ----
+  // Hedged on purpose: the context the user configured on their own side is
+  // invisible to us. What it says is — do not trust this one, check it.
+  "ai.mayNotFit": "The text may not have fit; this answer may not have seen the whole document.",
   "ai.err.off": "AI is off.",
   "ai.err.noSelection": "Select some text first.",
   "ai.err.noModel": "No model chosen — choose one in Settings.",

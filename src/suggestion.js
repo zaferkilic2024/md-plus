@@ -25,6 +25,7 @@
 import { suggest, jobName, jobLines } from "./ai.js";
 import { candidateLines } from "./ai-check.js";
 import { t } from "./i18n.js";
+import { GLYPH } from "./strip.js";
 
 const icon = (paths) =>
   `<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round">${paths}</svg>`;
@@ -139,7 +140,7 @@ export class Suggestion {
    * global notice will replace them, see YAPILACAKLAR). The header now matches the
    * text cards: job, time, tokens and model on top; body below; buttons at foot.
    */
-  showReport({ rapor, sure, kullanim, model }) {
+  showReport({ rapor, sure, kullanim, model, uzun }) {
     this.dom.replaceChildren();
     this.dom.hidden = false;
     this.dom.className = "suggestion report";
@@ -205,7 +206,7 @@ export class Suggestion {
     kapat.onclick = () => this.close();
 
     alt.append(copyButton(rapor), kapat);
-    this.dom.append(kontrol, govde, alt);
+    this.dom.append(kontrol, ...lengthNotice(uzun), govde, alt);
     this.fit();
   }
 
@@ -253,7 +254,7 @@ export class Suggestion {
    * nothing lines up with what it replaces. Stacked, the eye scans down and
    * finds the difference.
    */
-  showSuggestion({ metin, bayraklar, kelime, sure, kullanim, model }) {
+  showSuggestion({ metin, bayraklar, kelime, sure, kullanim, model, uzun }) {
     this.dom.replaceChildren();
     this.dom.hidden = false;
     this.dom.className = "suggestion open";
@@ -328,7 +329,7 @@ export class Suggestion {
     // Copy on the left; the accept/dismiss pair sits at the right.
     eylemler.append(copyButton(metin), al, birak);
 
-    this.dom.append(kontrol, govde, eylemler);
+    this.dom.append(kontrol, ...lengthNotice(uzun), govde, eylemler);
     this.fit();
   }
 
@@ -466,6 +467,30 @@ export class Suggestion {
  * not just the paid one — knowing the size of a call is worth something even when
  * it is free, and it is the only honest answer to "how much is this eating?".
  */
+/**
+ * The "this may not have fit" line, or nothing at all.
+ *
+ * Returns an array so callers can spread it into `append` — a card with no
+ * length problem gets no element, not an empty one, and the layout stays
+ * exactly as it was (KR-42's rule, applied to a line instead of a button).
+ *
+ * It sits ABOVE the answer on purpose. Under it, the reader has already
+ * believed the summary by the time they reach the warning.
+ */
+function lengthNotice(uzun) {
+  if (!uzun) return [];
+
+  const satir = document.createElement("div");
+  satir.className = "suggestion-notice";
+  satir.innerHTML = icon(GLYPH.warn);
+
+  const soz = document.createElement("span");
+  soz.textContent = t("ai.mayNotFit");
+  satir.append(soz);
+
+  return [satir];
+}
+
 /** The model's name, pushed to the far right of the control line. */
 function modelEtiketi(model) {
   const el = document.createElement("span");
