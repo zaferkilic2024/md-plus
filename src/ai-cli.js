@@ -106,8 +106,24 @@ export function probeAgent(row) {
     try {
       const { Command } = await import("@tauri-apps/plugin-shell");
       const res = await Command.create(row.probe.name, row.probe.args).execute();
+      if (res.code !== 0) {
+        console.warn(`ai-cli: ${row.command} ${res.code} ile çıktı — satır gizlendi.`);
+      }
       return res.code === 0;
-    } catch {
+    } catch (error) {
+      // A hidden row explains itself somewhere, or "why is it not in the list?"
+      // has no answer at all. console.WARN, not error: a missing agent is the
+      // expected case on most machines, and the red band in index.html is for
+      // crashes (it never clears). The message names the two things that are
+      // actually wrong when the agent IS installed: the shell capability is
+      // compiled into the Rust binary, so a newly added command needs the app
+      // restarted; and the command has to be on PATH as the app sees it.
+      console.warn(
+        `ai-cli: ${row.command} yanıt vermedi — satır gizlendi. ` +
+          `Kuruluysa: yetki Rust ikilisine gömülüdür (yeni komut = uygulamayı ` +
+          `yeniden başlat), ve komut PATH'te olmalı. Sebep:`,
+        error,
+      );
       return false;
     }
   })();
