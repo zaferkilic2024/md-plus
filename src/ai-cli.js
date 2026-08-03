@@ -284,7 +284,12 @@ export const providers = [
     ad: "Codex",
     anahtarli: false,
     protokol: "cli",
-    command: "codex",
+    // UZANTI ŞART. Codex npm ile kurulur, npm de Windows'ta gerçek bir .exe
+    // değil bir sarmalayıcı bırakır (codex.cmd + codex.ps1). İşletim sistemi
+    // uzantısız bir ada yalnız .exe arar; "codex" dediğimizde hiçbir şey
+    // bulunmuyor ve satır "kurulu değil" sayılıp gizleniyordu.
+    // claude ve agy'de bu sorun yok, ikisi de gerçek .exe.
+    command: "codex.cmd",
     abonelik: true,
     maxLength: 20000,
     probe: { name: "codex-version", args: ["--version"] },

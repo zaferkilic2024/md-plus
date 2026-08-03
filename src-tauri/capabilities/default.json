@@ -60,7 +60,7 @@
         { "name": "agy-models", "cmd": "agy", "args": ["models"] },
         {
           "name": "codex",
-          "cmd": "codex",
+          "cmd": "codex.cmd",
           "args": [
             "exec",
             "--json",
@@ -77,7 +77,7 @@
             { "validator": "[\\s\\S]+" }
           ]
         },
-        { "name": "codex-version", "cmd": "codex", "args": ["--version"] }
+        { "name": "codex-version", "cmd": "codex.cmd", "args": ["--version"] }
       ]
     },
     {
