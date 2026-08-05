@@ -1,6 +1,6 @@
 // Image typesetting (UC-03).
 //
-// ![alt](gorseller/x.png) is drawn at the text measure. Same rule as every other
+// ![alt](tez.images/x.png) is drawn at the text measure. Same rule as every other
 // mark: the raw source shows only while the cursor is on that line, so the link
 // stays editable. A missing file says so and keeps the text flowing (UC-03/A2).
 //

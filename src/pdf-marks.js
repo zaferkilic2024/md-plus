@@ -124,7 +124,7 @@ export class PdfMarkStore {
   /** Loads the sidecar. Anchors are resolved lazily, page by page, as pages are
       drawn — a mark cannot be found in text that has not been extracted yet. */
   async load() {
-    const sidecar = await readSidecar(this.tab.path);
+    const sidecar = await readSidecar(this.tab.path, this.tab.signature);
     this.records = sidecar.isaretler ?? [];
     this.sidecar = sidecar;
     this.resolveDrawn();
@@ -612,9 +612,15 @@ export class PdfMarkStore {
     this.onCount?.();
   }
 
-  /** Marks live beside the PDF, in .mdplus/ — never inside it (KR-15, KR-68). */
+  /** Marks live in the workshop — never inside the PDF (KR-68). The signature
+      was taken from the bytes at open; a PDF is never written by us, so it
+      never goes stale. */
   async write() {
-    await writeSidecar(this.tab.path, { ...this.sidecar, isaretler: this.records });
+    await writeSidecar(
+      this.tab.path,
+      { ...this.sidecar, isaretler: this.records },
+      this.tab.signature,
+    );
   }
 
   destroy() {

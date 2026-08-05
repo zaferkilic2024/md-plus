@@ -10,8 +10,10 @@ src-tauri/target/
 # Geçici çalışma dosyaları (her şey .tmp/ altına)
 .tmp/
 
-# Yan kayıt: işaretler, yorumlar, yedekler — belgenin yanında yaşar, depoya girmez.
+# Atölye öncesinden kalan yan kayıtlar (artık uygulamanın kendi klasöründe).
 .mdplus/
+# Güvenli yazmanın geçici dosyası — taşınmadan önce yaşar, saniyeler sürer.
+*.md.tmp
 
 # Uygulama ayarları (kullanıcıya ait, ürüne değil)
 ayarlar.json

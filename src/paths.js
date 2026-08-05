@@ -4,8 +4,6 @@
 // which is how the app ended up with two definitions of "same file". One home
 // now; storage.js re-exports the common ones so its callers keep one import.
 
-export const SIDECAR_DIR = ".mdplus";
-
 export const separator = (path) => (path.includes("\\") ? "\\" : "/");
 
 export const folderOf = (path) => path.slice(0, path.lastIndexOf(separator(path)));

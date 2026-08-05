@@ -1,10 +1,9 @@
 // The session: which documents are open, which one is in front, and where the
 // reader had got to in each (UC-02-K1, UC-04).
 //
-// Unlike marks and comments — which live beside their document (KR-15) — the
-// tab list belongs to no document at all, so it cannot live next to one: on
-// startup there would be no folder to look in. It goes in the app's own data
-// folder instead.
+// The tab list belongs to no document at all, so it goes in the app's own
+// folder — where marks and comments now live too, one folder along
+// (`~/.mdplus/annotations/`).
 //
 // "Where you were" is not a scroll offset. A scroll offset is meaningless once
 // the file has been edited elsewhere; the anchor is the text of the topmost
@@ -12,17 +11,12 @@
 // has changed past recognition, the file simply opens at the top — silently,
 // no warning (UC-04/A1).
 
-import { appDataDir } from "@tauri-apps/api/path";
-import { exists, mkdir, readTextFile, writeTextFile } from "@tauri-apps/plugin-fs";
+import { exists, readTextFile, writeTextFile } from "@tauri-apps/plugin-fs";
+import { SESSION_FILE, appFolder } from "./app-folder.js";
 
 const VERSION = 1;
-const FILE = "oturum.json";
 
-async function sessionPath() {
-  const folder = await appDataDir();
-  if (!(await exists(folder))) await mkdir(folder, { recursive: true });
-  return `${folder}/${FILE}`;
-}
+const sessionPath = async () => `${await appFolder()}/${SESSION_FILE}`;
 
 export async function readSession() {
   try {

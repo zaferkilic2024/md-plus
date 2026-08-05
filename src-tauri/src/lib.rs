@@ -1,4 +1,5 @@
 mod pdf;
+mod secrets;
 
 pub fn run() {
     tauri::Builder::default()
@@ -6,7 +7,12 @@ pub fn run() {
         .plugin(tauri_plugin_dialog::init())
         .plugin(tauri_plugin_http::init())
         .plugin(tauri_plugin_shell::init())
-        .invoke_handler(tauri::generate_handler![pdf::pdfe_bas])
+        .invoke_handler(tauri::generate_handler![
+            pdf::pdfe_bas,
+            secrets::secret_set,
+            secrets::secret_get,
+            secrets::secret_delete
+        ])
         .setup(|_app| {
             // DevTools artık açılışta kendiliğinden açılmıyor (Zafer, 17 Tem).
             // Hata ayıklaması gerektiğinde aşağıyı yorumdan çıkar — debug

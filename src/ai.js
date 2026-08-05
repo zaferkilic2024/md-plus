@@ -721,16 +721,61 @@ const isLocal = (url) =>
  */
 export function provider(job) {
   const yz = getSettings().yapayZeka ?? {};
-  const modelId = yz.isler?.[job];
-  if (!modelId) return null;
+  const route = resolveRoute(yz, yz.isler?.[job]);
+  if (!route) return null;
 
-  const örnek = (yz.modeller ?? []).find((m) => m.id === modelId);
-  if (!örnek) return null;
+  const baglanti = (yz.baglantilar ?? []).find((b) => b.id === route.baglantiId);
+  if (!baglanti) return null;
 
-  const baglanti = (yz.baglantilar ?? []).find((b) => b.id === örnek.baglantiId);
-  if (!baglanti || !örnek.model) return null;
+  return configFor(baglanti, route.model);
+}
 
-  return configFor(baglanti, örnek.model);
+/**
+ * Turns a job's stored value into a connection and a model.
+ *
+ * Three values are possible and the first two are not routes at all: "" means
+ * off — and off means absent (KR-42), so it must come back null rather than
+ * fall through to anything. "varsayilan" defers to the default, which is what
+ * lets someone set one model and leave nine jobs alone.
+ *
+ * `splitRoute` is separate and pure because of one detail that would otherwise
+ * be found the hard way: a model name can contain a slash. OpenRouter's are all
+ * `vendor/model`, so splitting on the first separator and taking `[1]` loses
+ * half the name — the request then asks for a model that does not exist, and
+ * the provider's error says nothing about slashes.
+ */
+export function resolveRoute(yz, value) {
+  if (!value) return null;
+  const ref = value === DEFAULT_ROUTE ? yz.varsayilan : value;
+  return splitRoute(ref);
+}
+
+export const DEFAULT_ROUTE = "varsayilan";
+
+export function splitRoute(ref) {
+  if (!ref) return null;
+  const cut = ref.indexOf("/");
+  if (cut < 1) return null;
+  const baglantiId = ref.slice(0, cut);
+  const model = ref.slice(cut + 1);
+  return model ? { baglantiId, model } : null;
+}
+
+export const routeOf = (baglantiId, model) => `${baglantiId}/${model}`;
+
+/**
+ * What a connection is called: its provider's name and its rank among the
+ * connections of that provider — `Gemini#1`, `Gemini#2`. Computed, never typed
+ * (KR-95). A typed name is a decision asked of someone who came here to paste a
+ * key, and it carries nothing: the key is filed under the id, and what actually
+ * distinguishes two rows is which provider they are.
+ */
+export function connectionName(baglanti, all = null) {
+  const meta = providerMeta(baglanti?.tur);
+  const label = meta ? providerLabel(meta) : "?";
+  const list = all ?? getSettings().yapayZeka?.baglantilar ?? [];
+  const rank = list.filter((b) => b.tur === baglanti?.tur).findIndex((b) => b.id === baglanti?.id);
+  return `${label}#${rank < 0 ? 1 : rank + 1}`;
 }
 
 /**
@@ -766,7 +811,7 @@ function configFor(baglanti, model) {
     // The writer's own name for the connection wins: it is the word they will
     // recognise. A model name alone cannot say which road it came by, and the
     // roads differ in who pays and what leaves the machine.
-    baglantiAdi: (baglanti.ad ?? "").trim() || providerLabel(p),
+    baglantiAdi: connectionName(baglanti),
     agaCikar,
   };
 }

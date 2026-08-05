@@ -31,6 +31,10 @@ tauri-plugin-http = { version = "2", features = ["unsafe-headers"] }
 tauri-plugin-shell = "2"
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
+# API keys go to the OS credential store, never into a settings file (see
+# secrets.rs). Platform-native backends only — no dbus/secret-service build
+# dependency is pulled in for a desktop we do not ship.
+keyring = { version = "3", features = ["windows-native", "apple-native"] }
 
 # PDF is produced by the WebView itself, so the page on paper is the page the
 # writer saw. Reaching its PrintToPdf needs the WebView2 bindings directly —

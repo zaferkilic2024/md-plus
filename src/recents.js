@@ -5,9 +5,9 @@
 // folder for the document you had open yesterday. Hence its place: beside the
 // door that opens documents, because it does the same job.
 //
-// The list belongs to the APP, not to any document — so it cannot live in a
-// .mdplus/ folder beside one (on startup there is no document folder to look in
-// yet), and it never touches the .md. It rides in oturum.json, `sonAcilanlar`.
+// The list belongs to the APP, not to any document — so it lives in the app's
+// own folder, as everything of ours now does, and it never touches the .md. It
+// rides in session.json, `sonAcilanlar`.
 //
 // Everything here is pure: no Tauri, no DOM, no disk. The list is data, and the
 // rules about it are the kind of thing that should be provable at a terminal.

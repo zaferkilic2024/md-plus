@@ -31,6 +31,7 @@ import {
   titleOf,
   writeDocument,
 } from "./storage.js";
+import { signatureOf } from "./workshop-index.js";
 import { movedTo, pageOfFragment, slugify, splitTarget } from "./citation.js";
 import { openContextMenu } from "./context-menu.js";
 import { passageMarkdown } from "./pdf-text.js";
@@ -287,13 +288,24 @@ function renderTabs() {
   // The application's own icon — the one on the taskbar and in the installer.
   // A second drawing of the brand in here would be a second brand: whatever the
   // window's corner shows has to be what the reader already knows the app by.
-  brand.innerHTML = `<img class="brand-icon" src="${brandIcon}" alt="" draggable="false">`;
+  // "beta" belongs to the app, not to any document — so it goes here, in the
+  // corner the app already owns, and nowhere else. It is a label, not a badge:
+  // no fill, no border, no accent (the accent means navigation and active
+  // state, and one word wearing it would be the lone blue button all over
+  // again). It rides inside the drag region so the corner stays draggable.
+  brand.innerHTML =
+    `<img class="brand-icon" src="${brandIcon}" alt="" draggable="false">` +
+    `<span class="brand-beta">beta</span>`;
   // The mark and the app's own page are ONE group, and the group is separated
   // from the tabs. Loose in the row they read as a third and fourth tab: the
   // eye had nothing telling it where the app ended and the documents began.
   const mark = document.createElement("div");
   mark.className = "app-mark";
-  mark.append(brand, chrome.about);
+  // A hairline between the chip and the app's page: the same 1px of --n4 the
+  // group already ends with, and the same one the palette parts its verbs with.
+  const seam = document.createElement("span");
+  seam.className = "brand-seam";
+  mark.append(brand, seam, chrome.about);
   tabsEl.append(mark);
 
   // Aktarma has no tabs (KR-41: one source, one target, nothing remembered), so
@@ -709,7 +721,6 @@ function renderStatus() {
         : "";
   const parts = [t("status.wordCount", { n: words.toLocaleString(effectiveLang()) })];
   if (state) parts.push(state);
-  if (tab.backupFailed) parts.push(t("status.backupFailed"));
   statusEl.textContent = parts.join(" · ");
 }
 
@@ -855,8 +866,8 @@ function createTab({ path, text }) {
     say: (message) => {
       statusEl.textContent = message;
     },
-    // Marks live in .mdplus/ beside the file (KR-15), so a document that has
-    // never been saved has nowhere to keep them.
+    // A record in the workshop is found by path first, so a document that has
+    // never been saved has no address to be filed under.
     ensureSaved: async () => {
       await saveTab(tab);
       return Boolean(tab.path);
@@ -909,9 +920,15 @@ async function createPdfTab(path) {
   activate(tabs.length - 1);
 
   try {
+    const data = await readBytes(path);
+    // Taken here because this is the one moment the bytes are in hand: the
+    // workshop needs it to find this PDF's notes again after it is moved, and
+    // reading a 30 MB file a second time just to ask would be a poor trade.
+    tab.signature = signatureOf(data);
+
     tab.pdf = await createPdfSurface({
       parent: host,
-      data: await readBytes(path),
+      data,
       // The page counter follows the scroll — in the status line, and in the
       // document row's own counter (nudged, not rebuilt: rebuilding the row on
       // every scroll event would tear down the box being typed into).
@@ -947,7 +964,7 @@ async function createPdfTab(path) {
     }),
   );
 
-  // Marks live beside the PDF in .mdplus/, exactly as a document's do (KR-15).
+  // A PDF's marks go to the workshop, exactly as a document's do.
   // The same store interface as a document's, so Aktarma can borrow it without
   // asking which kind of thing it is standing on.
   tab.marks = new PdfMarkStore(tab, {
@@ -1044,18 +1061,23 @@ async function saveTab(tab, { askForPath = false } = {}) {
   renderStatus();
   try {
     // UC-05-K2: images added before the first save follow the document home.
-    // Their links already read gorseller/… , so the text needs no rewriting.
-    if (wasDraft) await adoptDraftImages(path);
+    // Their links DO need rewriting now: the folder is named after the
+    // document (`tez.images/`), and while it was a draft there was no name to
+    // use. Done before the text is read below, so the file is right on its
+    // first write rather than corrected on the second.
+    if (wasDraft) {
+      const moved = await adoptDraftImages(path);
+      if (moved && moved.from !== moved.to) retargetImageLinks(tab.view, moved);
+    }
 
     const written = tab.view.state.doc.toString();
-    const { backupFailed } = await writeDocument(path, written);
+    await writeDocument(path, written);
     // What is on disk is now what we just put there — so the watcher below does
     // not read our own write back as somebody else's change.
     tab.diskText = written;
     tab.path = path;
     tab.title = titleOf(path);
     tab.dirty = false;
-    tab.backupFailed = backupFailed;
 
     // Now that the text is on disk, the anchors are rewritten from where the
     // marks actually stand — which is how a mark survives the writer typing
@@ -1067,7 +1089,7 @@ async function saveTab(tab, { askForPath = false } = {}) {
     // the moment its path is born — and that is when it enters, at the top.
     if (wasDraft) noteOpened(path);
   } catch (error) {
-    // UC-10/A1: the text stays in memory; the user is told, not silently lost.
+    // The text stays in memory; the user is told, not silently lost.
     console.error(error);
     statusEl.textContent = t("status.saveFailed", { error });
     tab.saving = false;
@@ -1196,7 +1218,27 @@ function newDocument() {
 
 // ---- images (UC-08) --------------------------------------------------------
 
-/** Writes the image link at the cursor, having copied the file into gorseller/. */
+/**
+ * Points a draft's image links at the folder the document has just been given.
+ *
+ * One dispatch, not one per link: a loop would put N steps on the undo stack
+ * for something the writer never typed, and the offsets would slide under it.
+ * Only `](images/` is touched — the exact shape this app writes — so a link the
+ * writer typed by hand at a folder of their own with the same name is left
+ * alone.
+ */
+function retargetImageLinks(view, { from, to }) {
+  const text = view.state.doc.toString();
+  const needle = `](${from}/`;
+  const changes = [];
+  for (let at = text.indexOf(needle); at !== -1; at = text.indexOf(needle, at + 1)) {
+    changes.push({ from: at, to: at + needle.length, insert: `](${to}/` });
+  }
+  if (changes.length) view.dispatch({ changes });
+}
+
+/** Writes the image link at the cursor, having copied the file in beside the
+    document (`tez.images/`). */
 async function placeImage(tab, view, source) {
   try {
     const link = await importImage({ documentPath: tab.path, ...source });
@@ -1669,7 +1711,7 @@ async function openTransfer() {
   // nothing to save and nothing to ask. It comes in as a reader: the left panel
   // reads, the right panel writes (Zafer, 28 Tem — "soldan okuyup sağda yazmak").
   //
-  // The source has to exist on disk: its marks live beside it (KR-15).
+  // The source has to exist on disk: its marks are filed under its path.
   if (!isPdfTab(source) && !source.path) {
     await saveTab(source);
     if (!source.path) return;
@@ -1793,7 +1835,7 @@ function saveSession() {
       // trip back to the tabs.
       sonAktarma: { kaynak: lastPair.source, hedef: lastPair.target },
       // KR-58: the app's own list, in the app's own folder. Not one byte of it
-      // goes into a .md or a .mdplus/ (UC-20-K8).
+      // goes into a .md or anywhere near the reader's folders (UC-20-K8).
       sonAcilanlar: recents,
     });
   }, 500);

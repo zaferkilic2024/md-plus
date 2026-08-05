@@ -11,7 +11,14 @@
 // mark is. See surface.js (the live range) and anchor.js (reanchor).
 
 import { EditorView } from "@codemirror/view";
-import { makeAnchor, reanchor, readSidecar, resolveAnchor, writeSidecar } from "./sidecar.js";
+import {
+  makeAnchor,
+  reanchor,
+  readSidecar,
+  resolveAnchor,
+  signatureOf,
+  writeSidecar,
+} from "./sidecar.js";
 import { liveMarks, setMarks } from "./surface.js";
 import { hidePalettes } from "./palette.js";
 import { Strip } from "./strip.js";
@@ -155,7 +162,7 @@ export class MarkStore {
   async load() {
     if (!this.tab.path) return;
 
-    this.sidecar = await readSidecar(this.tab.path);
+    this.sidecar = await readSidecar(this.tab.path, signatureOf(this.tab.diskText));
     const text = this.tab.view.state.doc.toString();
     const placed = [];
     const kept = [];
@@ -186,10 +193,17 @@ export class MarkStore {
    * Writes the sidecar as it stands. Anchors are deliberately not touched here:
    * they describe the text on disk, and between saves the text on disk is not
    * what is on screen (KR-56). Refreshing them is `save`'s job.
+   *
+   * The signature is taken from `diskText` for the same reason: it describes
+   * the file as it lies on disk, which is what a later lookup will hash.
    */
   async write() {
     if (!this.tab.path) return;
-    await writeSidecar(this.tab.path, { ...this.sidecar, isaretler: this.records });
+    await writeSidecar(
+      this.tab.path,
+      { ...this.sidecar, isaretler: this.records },
+      signatureOf(this.tab.diskText),
+    );
   }
 
   /**
@@ -372,7 +386,7 @@ export class MarkStore {
     // SD-01: an empty or whitespace-only selection offers nothing. Silently.
     if (range.empty || !view.state.sliceDoc(range.from, range.to).trim()) return null;
 
-    // Marks live beside the file (KR-15), so there has to be a file. Same
+    // A mark is filed under a path, so there has to be a file. Same
     // bargain as putting a link into a document that has never been saved.
     if (!this.tab.path && !(await this.ensureSaved())) return null;
 

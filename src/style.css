@@ -195,6 +195,37 @@ body {
   display: block;
   pointer-events: none;
 }
+/* A filled chip beside the mark, after the reference in .tmp/beta.png. Its
+   colours were measured off that image rather than guessed (pill #DED7C9, text
+   core ~#52493E) and then answered from our own ramp: --n4 is the same warm
+   mid-light within a hair, --n6 the same weight of dark. Nothing new invented,
+   and no accent — the accent means navigation and active state.
+   Size is the label step (11), the smallest of the four. Inert, like the icon:
+   the drag region underneath takes the press. */
+/* Not stretched to the row's full height: a hairline that runs edge to edge
+   reads as a wall between two areas, and this parts two things inside one
+   group. It stands as tall as the mark it sits beside. */
+.brand-seam {
+  width: 1px;
+  height: 18px;
+  flex: none;
+  margin: 0 2px 0 4px;
+  background: var(--n4);
+}
+.brand-beta {
+  font-size: 11px;
+  line-height: 1;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--n6);
+  background: var(--n4);
+  border-radius: var(--r1);
+  padding: 4px 6px 3px;
+  margin-left: 7px;
+  align-self: center;
+  pointer-events: none;
+  user-select: none;
+}
 /* The stretch of row you grab to move the window. It has to be able to shrink
    to nothing (the tabs come first), but it must never vanish entirely or a full
    strip would leave no grip at all. */
@@ -886,7 +917,10 @@ body.maximized .resize-edges {
 .settings-panel {
   position: fixed;
   z-index: 30;
-  width: 360px;
+  /* 360 was set when this panel held four sliders. The AI tab puts a provider
+     name, a model name and a control on one line, and at 360 all three were
+     clipped — the reference mockups are wider for the same reason. */
+  width: 480px;
   max-width: calc(100vw - 20px);
   max-height: calc(100vh - 60px);
   display: flex;
@@ -1035,7 +1069,9 @@ body.maximized .resize-edges {
 .type-slider {
   -webkit-appearance: none;
   appearance: none;
-  width: 150px;
+  /* Grows with the panel: at 150 the track sat in the middle of a 480px row
+     with the reading settings floating around it. */
+  width: 260px;
   height: 4px;
   border-radius: 999px;
   background: var(--frame);
@@ -2777,45 +2813,142 @@ body.dragging .body {
 
 /* A connection row (name · provider · key · ✕) and a model row wrap the same
    way, so nothing is pushed off the panel. */
-.ai-conn-row,
-.ai-model-ust {
+/* One provider, one card, its models inside it (KR-95). The card is the reason
+   the middle sub-tab could go: a model has nowhere to be an orphan when it
+   lives in the thing that reaches it. */
+.ai-card {
+  border: 1px solid var(--n4);
+  border-radius: var(--r2);
+  margin-bottom: 8px;
+  background: var(--n0);
+}
+.ai-card-head {
   display: flex;
   align-items: center;
-  gap: 5px;
-  margin-bottom: 6px;
+  gap: 4px;
+  padding: 4px 6px 4px 4px;
 }
-.ai-model-row {
-  padding: 6px 0;
-  border-bottom: 1px solid var(--rule);
-  margin-bottom: 6px;
+/* The whole header is the hit area, not the caret: a 12px triangle is a
+   ridiculous target for the one thing this row exists to do. */
+.ai-card-toggle {
+  flex: 1;
+  display: flex;
+  align-items: baseline;
+  gap: 7px;
+  min-width: 0;
+  padding: 4px 6px;
+  border: 0;
+  border-radius: var(--r1);
+  background: none;
+  text-align: left;
+  cursor: pointer;
+  font: inherit;
+  color: var(--ink);
 }
-/* A model whose connection was deleted (B-28). Marked, not hidden: the row is
-   still the reader's — it just has nowhere to call. The tone is the accent's
-   absence, not a new colour. */
-.ai-orphan .ai-mini {
-  border-style: dashed;
+.ai-card-toggle:hover {
+  background: var(--n3);
 }
-.ai-orphan .ai-conn-ad {
+.ai-card-caret {
+  flex: none;
+  font-size: 11px;
   color: var(--faint);
 }
-.ai-conn-ad {
+.ai-card-name {
+  font-size: 13.5px;
+}
+/* What the shut card is worth at a glance. Never a status light: whether a
+   remote provider will answer cannot be known without spending a request, and
+   a lamp that means "probably" is worse than no lamp. */
+.ai-card-sub {
+  font-size: 12.5px;
+  color: var(--faint);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.ai-card-body {
+  padding: 2px 10px 8px;
+  border-top: 1px solid var(--rule);
+}
+.ai-field {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-top: 6px;
+}
+.ai-field-label {
+  flex: none;
+  width: 58px;
+  font-size: 11px;
+  color: var(--n6);
+}
+.ai-field .ai-mini {
   flex: 1;
-  min-width: 70px;
+  min-width: 0;
+  width: auto;
 }
-.ai-conn-key {
-  flex: 1.4;
-  min-width: 60px;
+.ai-model-row {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  margin-top: 6px;
 }
-.ai-model-ara {
-  width: 100%;
-  margin-top: 5px;
+.ai-model-row .ai-model-ara {
+  flex: 1;
+  min-width: 0;
 }
-/* A custom connection's endpoint: its own full-width line under the row. */
-.ai-conn-adres {
-  width: 100%;
-  max-width: none;
-  margin: 0 0 8px;
+/* Add on the left, "39 models" on the right, one line — the count belongs to
+   the connection, so it is said once at the foot of the card rather than
+   beside every row. */
+.ai-card-foot {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 8px;
+  margin-top: 8px;
 }
+.ai-card-foot .ai-ekle-model {
+  margin: 0;
+  width: auto;
+  padding: 2px 0;
+  border: 0;
+  background: none;
+  text-align: left;
+}
+.ai-card-foot .ai-ekle-model:hover {
+  background: none;
+  text-decoration: underline;
+}
+.ai-card-foot .ai-model-durum {
+  flex: none;
+  text-align: right;
+}
+/* The row every other row can defer to — set once, and nine jobs stop asking
+   "which model?". It gets its own box because it is not one of the nine: a rule
+   between rows would have made it the first job in the list. */
+.ai-default-box {
+  padding: 2px 10px;
+  margin-bottom: 10px;
+  border: 1px solid var(--n4);
+  border-radius: var(--r2);
+  background: var(--n1);
+}
+/* The nine, in one box, parted by hairlines. */
+.ai-jobs-box {
+  border: 1px solid var(--n4);
+  border-radius: var(--r2);
+  background: var(--n0);
+  overflow: hidden;
+}
+.ai-jobs-box .ai-job-row {
+  padding: 7px 10px;
+  border-top: 1px solid var(--rule);
+}
+.ai-jobs-box .ai-job-row:first-child {
+  border-top: 0;
+}
+/* "3 model" — but also whatever the provider said when it refused. Secondary,
+   not mono 10.5: a count would fit there, an error message would not. */
 /* "3 model" — but also whatever the provider said when it refused. Secondary,
    not mono 10.5: a count would fit there, an error message would not. */
 .ai-model-durum {
@@ -2892,10 +3025,15 @@ body.dragging .body {
   background: var(--surface);
   color: var(--ink);
   cursor: pointer;
-  max-width: 130px;
+  min-width: 0;
 }
+/* No max-width anywhere here. A hard cap (130px, 150px) is what pressed every
+   dropdown into a column too narrow to read a model name in — "Gemini#1 ·
+   gemini-3.5-flash-lite" needs the room it needs. Controls take the width their
+   row gives them instead. */
 .ai-mini-model {
-  max-width: 150px;
+  flex: none;
+  width: 276px;
 }
 .ai-mini[hidden] {
   display: none;

@@ -22,7 +22,8 @@ cursor. There is no separate preview mode, because there is no need for one.
 ### Work in tabs
 
 All your documents in one window, tab by tab, always within reach. Tabs reorder
-by drag, save themselves, and keep a `.bak` backup on every save. Formatting
+by drag and save themselves — each save lands in a temporary file and is moved
+into place, so a write cut short can never touch your document. Formatting
 comes from a **floating palette** that appears on a selection, and from
 shortcuts: bold, italic, heading, list, quote, code, callout, image, link.
 

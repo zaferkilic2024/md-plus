@@ -24,7 +24,8 @@ satırdayken belirir. Ayrı bir önizleme kipi yoktur, çünkü gerek yoktur.
 ### Çok sekmeli çalışma
 
 Bütün belgeleriniz tek pencerede, sekme sekme elinizin altında. Sekmeler
-sürükle-bırak sıralanır, otomatik kaydedilir ve her kayıtta `.bak` yedeği alınır.
+sürükle-bırak sıralanır ve otomatik kaydedilir; kayıt önce geçici bir dosyaya
+yazılıp yerine taşınır, yani yarıda kalmış bir yazma belgenize dokunamaz.
 Biçim, metni seçince açılan **yüzen paletten** ve kısayollardan verilir: kalın,
 italik, başlık, liste, alıntı, kod, callout, görsel, link.
 

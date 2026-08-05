@@ -2,7 +2,8 @@
 //
 // That is why they hang off their own icon rather than the ⋯ menu, which is
 // about the document you are standing in. They are remembered across sessions
-// (ayarlar.json) and none of them writes a byte into a .md.
+// (~/.mdplus/settings.json — minus the API keys, which go to the OS credential
+// store, see secrets.js) and none of them writes a byte into a .md.
 //
 // Everything is live — change it and the document under you changes with it, so
 // you judge the setting on your own prose rather than on a preview.
@@ -19,14 +20,18 @@ import {
   updateSetting,
 } from "./settings.js";
 import {
+  DEFAULT_ROUTE,
   TRANSLATION_LANGS,
   connectionModels,
+  connectionName,
   jobName,
   languageName,
   providerLabel,
   providerMeta,
   providerRows,
   reportJobs,
+  routeOf,
+  splitRoute,
   textJobs,
 } from "./ai.js";
 import { askChoice } from "./confirm.js";
@@ -120,6 +125,15 @@ const modelKesi = new Map();
 // model instances ever share (or lack) an id.
 let dlSeq = 0;
 async function baglantininModelleri(baglanti) {
+  const meta = providerMeta(baglanti.tur);
+  if (!baglanti.tur) throw new Error(t("settings.conn.pickType"));
+  // Some providers list their models to anyone who asks (NVIDIA does), so an
+  // empty key still came back with a full list — which reads as a stale cache
+  // from an earlier key. It was neither: it was a question we should not have
+  // asked yet.
+  if (meta?.anahtarli && !(baglanti.anahtar ?? "").trim()) {
+    throw new Error(t("settings.conn.keyNeeded"));
+  }
   if (modelKesi.has(baglanti.id)) return modelKesi.get(baglanti.id);
   const soz = connectionModels(baglanti);
   modelKesi.set(baglanti.id, soz);
@@ -127,7 +141,18 @@ async function baglantininModelleri(baglanti) {
   return soz;
 }
 
-/** The AI tab: three sub-tabs, one per layer of the routing (KR-50). */
+/**
+ * The AI tab: two sub-tabs since KR-95 — providers, and jobs.
+ *
+ * It was three, one per layer of KR-50's routing: connections, model instances,
+ * jobs. The middle one was the whole complaint (Zafer, 6 Aug: *"çok fazla
+ * karmaşık geliyor bana… amacım sadelik"*). A "model instance" was an object
+ * with a name you had to invent, pointing at a connection you had to pick, so
+ * that a job could point at it — three named things to get one sentence
+ * rewritten. Models now live inside the connection that reaches them, and a
+ * whole class of bug went with the layer: B-28's orphan row, which existed only
+ * because a model could outlive its connection.
+ */
 function aiSection() {
   const wrap = document.createElement("div");
   wrap.className = "ai-settings";
@@ -137,156 +162,247 @@ function aiSection() {
   const body = document.createElement("div");
 
   const sekmeler = [
-    [t("settings.sub.connections"), baglantilarTab],
-    [t("settings.sub.models"), modellerTab],
+    [t("settings.sub.providers"), saglayicilarTab],
     [t("settings.sub.jobs"), islerTab],
   ];
 
-  let etkin = null;
-  const goster = (ad, yap, dugme) => {
-    etkin = ad;
+  const goster = (yap, dugme) => {
     for (const b of bar.children) b.classList.toggle("on", b === dugme);
-    body.replaceChildren(yap(() => goster(ad, yap, dugme)));
+    body.replaceChildren(yap(() => goster(yap, dugme)));
   };
 
   for (const [ad, yap] of sekmeler) {
     const d = document.createElement("button");
     d.textContent = ad;
-    d.onclick = () => goster(ad, yap, d);
+    d.onclick = () => goster(yap, d);
     bar.append(d);
   }
 
-  // İşler opens first: once the connections and models are set up (a one-time
-  // chore), assigning jobs is the tab you actually come back to.
-  goster(sekmeler[2][0], sekmeler[2][1], bar.children[2]);
+  // Jobs opens first: setting a provider up is a one-time chore, choosing what
+  // the machine may do is the thing you come back to. Unless there is nothing
+  // to route yet — then Jobs has only one sentence to say, and it is "go to the
+  // other tab". Land where the work is.
+  const first = allRoutes().length ? 1 : 0;
+  goster(sekmeler[first][1], bar.children[first]);
   wrap.append(bar, body);
   return wrap;
 }
 
-/** Layer 1: named credentials. Enter a key once; reuse across models. */
-function baglantilarTab(render) {
+/** Which cards are open. Kept outside the render so re-drawing a card — which
+    happens on every keystroke in a key field — does not fold it shut. */
+const acikKartlar = new Set();
+
+/**
+ * Providers: one card per connection, its models inside it.
+ *
+ * There is no name field. The name is computed (`Gemini#1`) because a typed one
+ * asks a question of somebody who came here to paste a key, and it answers
+ * nothing: since KR-94 even the credential is filed under the id, so a name
+ * carries no meaning the provider type does not already carry.
+ */
+function saglayicilarTab(render) {
   const wrap = document.createElement("div");
 
-  // No explanatory prose here by choice: the network/cost truth (KR-47) still
-  // rides on each model's label ("… · ağa gider · ÜCRETLİ") and on the palette
-  // hint at the point of use, where it is read; a wall of text at the top was not.
-
   for (const b of yz().baglantilar) {
-    const satir = document.createElement("div");
-    satir.className = "ai-conn-row";
-
-    const ad = document.createElement("input");
-    ad.className = "ai-mini ai-conn-ad";
-    ad.placeholder = t("settings.conn.namePlaceholder");
-    ad.value = b.ad ?? "";
-    ad.oninput = () => guncelleBaglanti(b.id, { ad: ad.value });
-
-    const tur = document.createElement("select");
-    tur.className = "ai-mini";
-    for (const s of SAGLAYICILAR(b.tur)) {
-      const o = document.createElement("option");
-      o.value = s.id;
-      o.textContent = providerLabel(s);
-      o.selected = b.tur === s.id;
-      tur.append(o);
-    }
-    tur.onchange = async () => {
-      modelKesi.delete(b.id);
-      await guncelleBaglanti(b.id, { tur: tur.value });
-      render(); // key field appears or disappears with the type
-    };
-
-    satir.append(ad, tur);
-
-    if (saglayiciMeta(b.tur)?.anahtarli) {
-      const key = document.createElement("input");
-      key.type = "password";
-      key.className = "ai-mini ai-conn-key";
-      key.placeholder = t("settings.conn.keyPlaceholder");
-      key.value = b.anahtar ?? "";
-      let bekle = null;
-      key.oninput = () => {
-        clearTimeout(bekle);
-        bekle = setTimeout(() => {
-          modelKesi.delete(b.id);
-          guncelleBaglanti(b.id, { anahtar: key.value.trim() });
-        }, 500);
-      };
-      satir.append(key);
-    }
-
-    const sil = document.createElement("button");
-    sil.className = "ai-sil";
-    sil.textContent = "✕";
-    sil.title = t("settings.conn.delete");
-    sil.onclick = async () => {
-      // A connection is not alone: model rows point at its id, and jobs point at
-      // those models. Deleting it and leaving them behind is what B-28 was —
-      // deleting Ollama and re-adding it gave the new one a NEW id, the old model
-      // row went on pointing at the dead one, and the job it fed simply stopped
-      // being drawn in the palette (provider() returns null, and KR-42 draws no
-      // dead buttons). A job disappearing with no reason written anywhere is the
-      // one answer that is not allowed, so the deletion takes its dependants with
-      // it and says so first.
-      const dependants = yz().modeller.filter((m) => m.baglantiId === b.id);
-      if (dependants.length) {
-        const name = b.ad || providerLabel(saglayiciMeta(b.tur)) || t("settings.conn.fallbackName");
-        const answer = await askChoice(
-          t("settings.conn.deleteCascade", { ad: name, n: dependants.length }),
-          [
-            { label: t("dialog.cancel"), value: "cancel" },
-            { label: t("settings.conn.deleteConfirm"), value: "delete", primary: true },
-          ],
-        );
-        if (answer !== "delete") return;
-      }
-      const orphanIds = new Set(dependants.map((m) => m.id));
-      const isler = Object.fromEntries(
-        Object.entries(yz().isler).map(([job, modelId]) => [
-          job,
-          orphanIds.has(modelId) ? "" : modelId,
-        ]),
-      );
-      await setYZ({
-        baglantilar: yz().baglantilar.filter((x) => x.id !== b.id),
-        modeller: yz().modeller.filter((m) => !orphanIds.has(m.id)),
-        isler,
-      });
-      render();
-    };
-    satir.append(sil);
-    wrap.append(satir);
-
-    // Custom (OpenAI-compatible) connections type their own endpoint. Its own
-    // full-width line beneath the row, so the row above never overflows the panel.
-    if (saglayiciMeta(b.tur)?.baseUrlKullanicidan) {
-      const adres = document.createElement("input");
-      adres.className = "ai-mini ai-conn-adres";
-      adres.placeholder = t("settings.conn.addressPlaceholder");
-      adres.value = b.baseUrl ?? "";
-      let bekleU = null;
-      adres.oninput = () => {
-        clearTimeout(bekleU);
-        bekleU = setTimeout(() => {
-          modelKesi.delete(b.id); // base URL changed → its model list is stale
-          guncelleBaglanti(b.id, { baseUrl: adres.value.trim() });
-        }, 500);
-      };
-      wrap.append(adres);
-    }
+    wrap.append(saglayiciKarti(b, render));
   }
 
   const ekle = document.createElement("button");
   ekle.className = "ai-ekle";
   ekle.textContent = t("settings.conn.add");
   ekle.onclick = async () => {
+    const id = yeniId();
+    // No type preselected (Zafer): landing on Gemini makes a choice on the
+    // reader's behalf and, worse, looks like one they already made.
     await setYZ({
-      baglantilar: [...yz().baglantilar, { id: yeniId(), ad: "", tur: "gemini", anahtar: "" }],
+      baglantilar: [...yz().baglantilar, { id, tur: "", anahtar: "", modeller: [] }],
     });
+    // Open the one just added: it is empty, and the next thing to happen is
+    // typing in it.
+    acikKartlar.add(id);
     render();
   };
   wrap.append(ekle);
   return wrap;
+}
+
+function saglayiciKarti(b, render) {
+  const kart = document.createElement("div");
+  kart.className = "ai-card";
+  const meta = saglayiciMeta(b.tur);
+  const acik = acikKartlar.has(b.id);
+
+  const bas = document.createElement("div");
+  bas.className = "ai-card-head";
+
+  // The whole header is the toggle — a caret you have to hit exactly is a
+  // 12-pixel target for a job the entire row is standing there to do.
+  const kapak = document.createElement("button");
+  kapak.className = "ai-card-toggle";
+  kapak.setAttribute("aria-expanded", String(acik));
+  kapak.innerHTML =
+    `<span class="ai-card-caret">${acik ? "▾" : "▸"}</span>` +
+    `<span class="ai-card-name"></span>` +
+    `<span class="ai-card-sub"></span>`;
+  kapak.querySelector(".ai-card-name").textContent = b.tur
+    ? connectionName(b, yz().baglantilar)
+    : t("settings.conn.pickType");
+  // What the card is worth at a glance while it is shut: how many models are in
+  // it. Not a green dot — we cannot know whether a remote provider will answer
+  // without spending a request on it, and a light that means "probably" is
+  // worse than no light (the same reason an unasked CLI question is never read
+  // as "no").
+  kapak.querySelector(".ai-card-sub").textContent = b.modeller?.length
+    ? t("settings.conn.modelCount", { n: b.modeller.length })
+    : t("settings.conn.noModel");
+  kapak.onclick = () => {
+    if (acik) acikKartlar.delete(b.id);
+    else acikKartlar.add(b.id);
+    render();
+  };
+
+  const sil = document.createElement("button");
+  sil.className = "ai-sil";
+  sil.textContent = "✕";
+  sil.title = t("settings.conn.delete");
+  sil.onclick = async () => {
+    // KR-77's first half survives the new shape: a connection is still not
+    // alone — jobs route through its models — so the deletion says what it will
+    // take before it takes it. The second half (marking orphan rows) is gone
+    // with the layer that made orphans possible.
+    const used = jobsUsing(b.id);
+    if (b.modeller?.length || used.length) {
+      const answer = await askChoice(
+        t("settings.conn.deleteCascade", {
+          ad: connectionName(b, yz().baglantilar),
+          n: b.modeller?.length ?? 0,
+        }),
+        [
+          { label: t("dialog.cancel"), value: "cancel" },
+          { label: t("settings.conn.deleteConfirm"), value: "delete", primary: true },
+        ],
+      );
+      if (answer !== "delete") return;
+    }
+    const isler = Object.fromEntries(
+      Object.entries(yz().isler).map(([job, value]) => [job, usesConnection(value, b.id) ? "" : value]),
+    );
+    await setYZ({
+      baglantilar: yz().baglantilar.filter((x) => x.id !== b.id),
+      isler,
+      varsayilan: usesConnection(yz().varsayilan, b.id) ? "" : yz().varsayilan,
+    });
+    modelKesi.delete(b.id);
+    render();
+  };
+
+  bas.append(kapak, sil);
+  kart.append(bas);
+  if (!acik) return kart;
+
+  const govde = document.createElement("div");
+  govde.className = "ai-card-body";
+
+  const tur = document.createElement("select");
+  tur.className = "ai-mini";
+  if (!b.tur) {
+    const bos = new Option(t("settings.conn.pickType"), "");
+    bos.selected = true;
+    bos.disabled = true;
+    tur.append(bos);
+  }
+  for (const s of SAGLAYICILAR(b.tur)) {
+    const o = new Option(providerLabel(s), s.id);
+    o.selected = b.tur === s.id;
+    tur.append(o);
+  }
+  tur.onchange = async () => {
+    modelKesi.delete(b.id);
+    // The models belonged to the old provider; keeping them would leave names
+    // that the new one has never heard of.
+    await guncelleBaglanti(b.id, { tur: tur.value, modeller: [] });
+    render();
+  };
+  govde.append(satirla(t("settings.conn.type"), tur));
+
+  if (meta?.anahtarli) {
+    const key = document.createElement("input");
+    key.type = "password";
+    key.className = "ai-mini";
+    key.placeholder = t("settings.conn.keyPlaceholder");
+    key.value = b.anahtar ?? "";
+    let bekle = null;
+    key.oninput = () => {
+      clearTimeout(bekle);
+      bekle = setTimeout(() => {
+        modelKesi.delete(b.id);
+        guncelleBaglanti(b.id, { anahtar: key.value.trim() });
+      }, 500);
+    };
+    govde.append(satirla(t("settings.conn.key"), key));
+  }
+
+  if (meta?.baseUrlKullanicidan) {
+    const adres = document.createElement("input");
+    adres.className = "ai-mini";
+    adres.placeholder = t("settings.conn.addressPlaceholder");
+    adres.value = b.baseUrl ?? "";
+    let bekleU = null;
+    adres.oninput = () => {
+      clearTimeout(bekleU);
+      bekleU = setTimeout(() => {
+        modelKesi.delete(b.id); // base URL changed → its model list is stale
+        guncelleBaglanti(b.id, { baseUrl: adres.value.trim() });
+      }, 500);
+    };
+    govde.append(satirla(t("settings.conn.address"), adres));
+  }
+
+  // The live value of every model box, because the settings object is not it.
+  // A model is written on a 400 ms debounce, so between typing and that timer
+  // the truth is on screen and nowhere else — and the captured `b` is older
+  // still. Building the new list from the captured object is what cleared the
+  // boxes: "+ model" appended to a stale array and wrote the old one back over
+  // what had been typed. The registered trap, again: read the live state from
+  // the DOM, never from an object a closure caught earlier.
+  const kutular = [];
+  const canliModeller = () => kutular.map((k) => k.value.trim());
+
+  for (const [i, model] of (b.modeller ?? []).entries()) {
+    const { row, input } = modelSatiri(b, i, model, render, canliModeller);
+    kutular.push(input);
+    govde.append(row);
+  }
+
+  const alt = document.createElement("div");
+  alt.className = "ai-card-foot";
+
+  const ekle = document.createElement("button");
+  ekle.className = "ai-ekle ai-ekle-model";
+  ekle.textContent = t("settings.model.add");
+  ekle.onclick = async () => {
+    await guncelleBaglanti(b.id, { modeller: [...canliModeller(), ""] });
+    render();
+  };
+
+  // How many models this provider offers, said once per card rather than once
+  // per row: it is the connection's fact, not any single model's, and four
+  // copies of "39 model" is three too many.
+  const sayac = document.createElement("span");
+  sayac.className = "ai-model-durum";
+  baglantininModelleri(b)
+    .then((liste) => {
+      sayac.textContent = t("settings.model.count", { n: liste.length });
+    })
+    .catch((hata) => {
+      sayac.textContent = hata.message;
+    });
+
+  alt.append(ekle, sayac);
+  govde.append(alt);
+
+  kart.append(govde);
+  return kart;
 }
 
 async function guncelleBaglanti(id, alan) {
@@ -295,139 +411,133 @@ async function guncelleBaglanti(id, alan) {
   });
 }
 
-/** Layer 2: named model instances. One connection can feed several. */
-function modellerTab(render) {
-  const wrap = document.createElement("div");
-
-  if (!yz().baglantilar.length) {
-    const not = document.createElement("p");
-    not.className = "ai-note";
-    not.textContent = t("settings.model.needConnection");
-    wrap.append(not);
-    return wrap;
-  }
-
-  for (const m of yz().modeller) {
-    wrap.append(modelRow(m, render));
-  }
-
-  const ekle = document.createElement("button");
-  ekle.className = "ai-ekle";
-  ekle.textContent = t("settings.model.add");
-  ekle.onclick = async () => {
-    const ilk = yz().baglantilar[0];
-    await setYZ({
-      modeller: [...yz().modeller, { id: yeniId(), ad: "", baglantiId: ilk.id, model: "" }],
-    });
-    render();
-  };
-  wrap.append(ekle);
-  return wrap;
+/** A label and its control, on one line. */
+function satirla(etiket, denetim) {
+  const row = document.createElement("div");
+  row.className = "ai-field";
+  const label = document.createElement("span");
+  label.className = "ai-field-label";
+  label.textContent = etiket;
+  row.append(label, denetim);
+  return row;
 }
 
-function modelRow(m, render) {
-  const satir = document.createElement("div");
-  satir.className = "ai-model-row";
+/**
+ * One model inside its connection: a search box against the provider's real
+ * list, because OpenRouter alone offers hundreds and a dropdown of hundreds is
+ * not a choice, it is a scroll.
+ *
+ * Returns the input as well as the row: the card needs to read what is in every
+ * box right now, and "right now" is the box, not the settings file.
+ */
+function modelSatiri(b, index, model, render, canliModeller) {
+  const row = document.createElement("div");
+  row.className = "ai-model-row";
 
-  const ust = document.createElement("div");
-  ust.className = "ai-model-ust";
+  const liste = document.createElement("datalist");
+  liste.id = `dl-${b.id}-${index}-${++dlSeq}`;
 
-  const ad = document.createElement("input");
-  ad.className = "ai-mini ai-conn-ad";
-  ad.placeholder = t("settings.model.namePlaceholder");
-  ad.value = m.ad ?? "";
-  ad.oninput = () => guncelleModel(m.id, { ad: ad.value });
-
-  const baglanti = document.createElement("select");
-  baglanti.className = "ai-mini";
-  // An orphan row — its connection was deleted before the cascade above existed
-  // (B-28). Without this the select silently shows its FIRST option as chosen and
-  // the row reads as healthy while `m.baglantiId` points at nothing. The empty
-  // option is selectable-out-of, never back into: picking a real connection
-  // repairs the row.
-  const orphan = !yz().baglantilar.some((b) => b.id === m.baglantiId);
-  if (orphan) {
-    const o = new Option(t("settings.model.orphan"), "");
-    o.selected = true;
-    o.disabled = true;
-    baglanti.append(o);
-    satir.classList.add("ai-orphan");
-  }
-  for (const b of yz().baglantilar) {
-    const o = document.createElement("option");
-    o.value = b.id;
-    o.textContent = b.ad || providerLabel(saglayiciMeta(b.tur)) || t("settings.conn.fallbackName");
-    o.selected = b.id === m.baglantiId;
-    baglanti.append(o);
-  }
+  const kutu = document.createElement("input");
+  kutu.className = "ai-mini ai-model-ara";
+  kutu.setAttribute("list", liste.id);
+  kutu.placeholder = t("settings.model.searchPlaceholder");
+  kutu.value = model ?? "";
+  let bekle = null;
+  kutu.oninput = () => {
+    clearTimeout(bekle);
+    bekle = setTimeout(() => setModel(b.id, index, kutu.value.trim()), 400);
+  };
+  // Leaving the box commits it now rather than 400 ms from now — otherwise
+  // clicking straight from here onto something that reads the settings races
+  // the timer.
+  kutu.onchange = () => {
+    clearTimeout(bekle);
+    setModel(b.id, index, kutu.value.trim());
+  };
 
   const sil = document.createElement("button");
   sil.className = "ai-sil";
   sil.textContent = "✕";
   sil.title = t("settings.model.delete");
   sil.onclick = async () => {
-    await setYZ({ modeller: yz().modeller.filter((x) => x.id !== m.id) });
+    // Built from what is on screen, minus this row — same reason as "+ model".
+    const kalan = canliModeller().filter((_, i) => i !== index);
+    await guncelleBaglanti(b.id, { modeller: kalan });
+    await forgetRoute(routeOf(b.id, model));
     render();
   };
 
-  ust.append(ad, baglanti, sil);
-
-  // The model itself — a search box against the connection's real list, since
-  // OpenRouter alone offers hundreds. Type "opus", see what it has.
-  const liste = document.createElement("datalist");
-  liste.id = `dl-${m.id}-${++dlSeq}`;
-  const model = document.createElement("input");
-  model.className = "ai-mini ai-model-ara";
-  model.setAttribute("list", liste.id);
-  model.placeholder = t("settings.model.searchPlaceholder");
-  model.value = m.model ?? "";
-  model.oninput = () => guncelleModel(m.id, { model: model.value.trim() });
-
-  const durum = document.createElement("span");
-  durum.className = "ai-model-durum";
-
-  const doldur = async () => {
-    // Read the connection from the SELECT, never from the captured `m`. After
-    // switching this row's connection, `m.baglantiId` is still the old value
-    // (the settings store was updated, this closure's object was not), so
-    // reading `m` fetched the previous provider's models — Gemini, the first
-    // connection — until a tab switch rebuilt the row with a fresh `m`. That was
-    // the whole "wrong list first, fixed on return" bug.
-    const b = yz().baglantilar.find((x) => x.id === baglanti.value);
-    if (!b) {
-      liste.replaceChildren();
-      durum.textContent = orphan ? t("settings.model.orphan") : "";
-      return;
-    }
-    liste.replaceChildren(); // drop stale options up front, before the await
-    durum.textContent = "…";
-    try {
-      const modeller = await baglantininModelleri(b);
+  baglantininModelleri(b)
+    .then((modeller) => {
       liste.replaceChildren();
       for (const opt of modeller) liste.append(new Option(opt, opt));
-      // Chromium can also bind an <input list> before a slow first fetch's
-      // options arrive; re-setting the attribute forces it to pick them up.
-      model.removeAttribute("list");
-      model.setAttribute("list", liste.id);
-      durum.textContent = t("settings.model.count", { n: modeller.length });
-    } catch (hata) {
-      durum.textContent = hata.message;
-    }
-  };
+      // Chromium can bind an <input list> before a slow first fetch's options
+      // arrive; re-setting the attribute forces it to pick them up.
+      kutu.removeAttribute("list");
+      kutu.setAttribute("list", liste.id);
+    })
+    .catch(() => {
+      // The card's footer already says what went wrong; a row does not repeat it.
+    });
 
-  baglanti.onchange = async () => {
-    await guncelleModel(m.id, { baglantiId: baglanti.value, model: "" });
-    model.value = "";
-    doldur();
-  };
-
-  doldur();
-  satir.append(ust, model, durum, liste);
-  return satir;
+  row.append(kutu, sil, liste);
+  return { row, input: kutu };
 }
 
-async function guncelleModel(id, alan) {
-  await setYZ({ modeller: yz().modeller.map((m) => (m.id === id ? { ...m, ...alan } : m)) });
+/** Writes a model name into its slot, and carries every route that pointed at
+    the old name over to the new one — otherwise renaming a model silently
+    switched off every job using it. */
+async function setModel(baglantiId, index, model) {
+  const b = yz().baglantilar.find((x) => x.id === baglantiId);
+  if (!b) return;
+  const eski = b.modeller?.[index] ?? "";
+  if (eski === model) return;
+
+  const modeller = [...(b.modeller ?? [])];
+  modeller[index] = model;
+
+  const eskiRota = eski ? routeOf(baglantiId, eski) : null;
+  const yeniRota = model ? routeOf(baglantiId, model) : "";
+  const tasi = (value) => (eskiRota && value === eskiRota ? yeniRota : value);
+
+  await setYZ({
+    baglantilar: yz().baglantilar.map((x) => (x.id === baglantiId ? { ...x, modeller } : x)),
+    isler: Object.fromEntries(Object.entries(yz().isler).map(([job, v]) => [job, tasi(v)])),
+    varsayilan: tasi(yz().varsayilan),
+    // First model anywhere becomes the default. Not a guess about which model
+    // is best — a refusal to ask a question whose only sensible answer, when
+    // there is exactly one model, is the one model.
+    ...(model && !yz().varsayilan ? { varsayilan: yeniRota } : {}),
+  });
+}
+
+/** Clears any route pointing at a model that has just been removed. */
+async function forgetRoute(rota) {
+  if (!rota) return;
+  await setYZ({
+    isler: Object.fromEntries(
+      Object.entries(yz().isler).map(([job, v]) => [job, v === rota ? "" : v]),
+    ),
+    varsayilan: yz().varsayilan === rota ? "" : yz().varsayilan,
+  });
+}
+
+const jobsUsing = (baglantiId) =>
+  Object.entries(yz().isler)
+    .filter(([, v]) => usesConnection(v, baglantiId))
+    .map(([job]) => job);
+
+const usesConnection = (value, baglantiId) => splitRoute(value)?.baglantiId === baglantiId;
+
+/** Every model in every connection, as routes ready for a dropdown. */
+function allRoutes() {
+  const out = [];
+  for (const b of yz().baglantilar) {
+    for (const model of b.modeller ?? []) {
+      if (model) out.push({ value: routeOf(b.id, model), label: `${connectionName(b, yz().baglantilar)} · ${model}` });
+    }
+  }
+  return out;
 }
 
 /**
@@ -464,28 +574,62 @@ function translationRow() {
   return row;
 }
 
-/** Layer 3: bind each of the five jobs to a model instance. */
-function islerTab() {
+/**
+ * Jobs: a default model at the top, then one row per job.
+ *
+ * Every job starts off, and off still means absent (KR-42) — a default model
+ * routes, it does not switch anything on. What the default removes is the
+ * question "which model?" nine separate times: turning a job on is one click,
+ * and the answer to the model question is already there.
+ */
+function islerTab(render) {
   const wrap = document.createElement("div");
 
-  if (!yz().modeller.length) {
+  const routes = allRoutes();
+
+  // The list is drawn even with nothing to route it to (Zafer, 6 Aug): *"having
+  // no models does not mean having no jobs. The jobs should show — it is what
+  // makes you want to define a model. Otherwise: define a model for WHAT?"*
+  // Hiding them showed the price of the setup and none of what it buys. So the
+  // rows stay and go quiet instead, which is KR-64's rule in another place:
+  // disabled, not absent.
+  if (!routes.length) {
     const not = document.createElement("p");
     not.className = "ai-note";
     not.textContent = t("settings.jobs.needModel");
     wrap.append(not);
-    return wrap;
   }
 
-  const isOrphan = (m) => !yz().baglantilar.some((b) => b.id === m.baglantiId);
-  // A model whose connection is gone cannot answer, so the row says so where the
-  // routing is chosen rather than letting the job vanish from the palette (B-28).
-  const adOf = (m) =>
-    `${m.ad || m.model || t("settings.jobs.unnamed")}${isOrphan(m) ? ` (${t("settings.model.orphan")})` : ""}`;
-  const detayOf = (m) => {
-    const b = yz().baglantilar.find((x) => x.id === m.baglantiId);
-    const kaynak = b ? b.ad || providerLabel(saglayiciMeta(b.tur)) : t("settings.model.orphan");
-    return `${kaynak || "?"} · ${m.model || t("settings.jobs.noModelChosen")}`;
+  const varsayilanKutu = document.createElement("div");
+  varsayilanKutu.className = "ai-default-box";
+  const varsayilanRow = document.createElement("div");
+  varsayilanRow.className = "ai-job-row";
+  const vad = document.createElement("span");
+  vad.className = "ai-job-name";
+  vad.textContent = t("settings.jobs.default");
+  const vac = document.createElement("select");
+  vac.className = "ai-mini ai-mini-model";
+  vac.disabled = !routes.length;
+  for (const r of routes) {
+    const o = new Option(r.label, r.value);
+    o.selected = yz().varsayilan === r.value;
+    vac.append(o);
+  }
+  if (!routes.length) vac.append(new Option(t("settings.jobs.noModelYet"), ""));
+  vac.onchange = async () => {
+    await setYZ({ varsayilan: vac.value });
+    render();
   };
+  varsayilanRow.append(vad, vac);
+  varsayilanKutu.append(varsayilanRow);
+  wrap.append(varsayilanKutu);
+
+  // The jobs live in one box, parted by hairlines — the reference's shape, and
+  // the right one: they are nine of a kind, and the default above them is not
+  // one of them. Two boxes say that; a rule between rows would not.
+  const kutu = document.createElement("div");
+  kutu.className = "ai-jobs-box";
+  wrap.append(kutu);
 
   for (const job of [...textJobs(), ...reportJobs()]) {
     const satir = document.createElement("div");
@@ -497,39 +641,37 @@ function islerTab() {
 
     const sec = document.createElement("select");
     sec.className = "ai-mini ai-mini-model";
+    sec.disabled = !routes.length;
 
     const kapali = new Option(t("settings.jobs.off"), "");
     kapali.selected = !yz().isler[job];
     sec.append(kapali);
 
-    for (const m of yz().modeller) {
-      const o = new Option(adOf(m), m.id);
-      o.title = detayOf(m); // KR: hover names where this model was defined
-      o.selected = yz().isler[job] === m.id;
+    if (routes.length) {
+      const varsayilan = new Option(t("settings.jobs.useDefault"), DEFAULT_ROUTE);
+      varsayilan.selected = yz().isler[job] === DEFAULT_ROUTE;
+      sec.append(varsayilan);
+    }
+
+    for (const r of routes) {
+      const o = new Option(r.label, r.value);
+      o.selected = yz().isler[job] === r.value;
       sec.append(o);
     }
 
-    // The whole select gets the chosen model's detail as its tooltip too, so you
-    // can check "which model was that?" without opening the list.
-    const seciliDetay = () => {
-      const m = yz().modeller.find((x) => x.id === yz().isler[job]);
-      sec.title = m ? detayOf(m) : "";
-    };
-    seciliDetay();
-
     sec.onchange = async () => {
       await setYZ({ isler: { ...yz().isler, [job]: sec.value } });
-      seciliDetay();
+      render();
     };
 
     satir.append(ad, sec);
-    wrap.append(satir);
+    kutu.append(satir);
 
     // Translation is the one job with a setting of its own: WHICH WAY (KR-83).
     // Not the model's to guess (Zafer) — it is told. The pair sits under the row
-    // it belongs to, and only appears once the job has a model: a direction for
-    // a job that cannot run is a question nobody asked.
-    if (job === "translate" && yz().isler[job]) wrap.append(translationRow());
+    // it belongs to, and only appears once the job is on: a direction for a job
+    // that cannot run is a question nobody asked.
+    if (job === "translate" && yz().isler[job]) kutu.append(translationRow());
   }
 
   // The one global notice the 16 Tem sweep promised (KR-53), in the one place
@@ -747,6 +889,10 @@ export function openSettings(anchor) {
     // Ignore the icon itself: its own click does the toggle. Without this, the
     // mousedown closed the panel and the click reopened it — so it never shut.
     if (panel.contains(event.target) || anchor.contains(event.target)) return;
+    // A dialog the panel itself opened is not "outside" it. Confirming a
+    // deletion closed the whole panel: the click landed on the overlay, which
+    // is a child of <body>, and the rule below read that as "he clicked away".
+    if (event.target.closest?.(".overlay")) return;
     close();
   };
   // Capture phase, so it beats the suggestion card's Escape handler and closes
