@@ -3123,11 +3123,33 @@ body.dragging .body {
 
 /* ---- printing (UC-11) ----
    The sheet is invisible on screen and is the only thing on paper. */
+/* Off the screen, but LAID OUT. It used to be `display: none`, and a hidden
+   box has no layout at all: the sheet was first measured at the moment the
+   WebView was already exporting it. A text-only document survived that; one
+   with pictures did not — the PDF came out as a single page holding the first
+   image and nothing after it. Off-screen and invisible still means measured,
+   so by print time the page has already been built. */
 #print-host {
-  display: none;
+  position: fixed;
+  top: 0;
+  left: -10000px;
+  width: 176mm;
+  visibility: hidden;
+  pointer-events: none;
 }
 
 @media print {
+  /* The frame's own rule — `html, body { height: 100%; overflow: hidden }` —
+     is right for a window and fatal for paper: it clips the output to one
+     screenful, so every PDF came out ONE PAGE no matter how long the document
+     was. The app is a fixed viewport; a sheet of paper is not, and it has to be
+     told. */
+  html,
+  body {
+    height: auto;
+    overflow: visible;
+  }
+
   /* Everything the app puts around the document stays off the page: the tab
      strip, the status bar, the palette, the Aktarma layer — and with them the
      marks, badges and comments (UC-11-K1). */
@@ -3138,10 +3160,16 @@ body.dragging .body {
   }
 
   #print-host {
-    display: block;
+    position: static;
+    left: auto;
+    width: auto;
+    visibility: visible;
   }
 
+  /* A4, said out loud (Zafer): without a size the WebView used its own default
+     and the file came out Letter (612x792pt). */
   @page {
+    size: A4;
     margin: 22mm 18mm;
   }
 
@@ -3188,8 +3216,14 @@ body.dragging .body {
   .sheet .katex-display {
     break-inside: avoid;
   }
+  /* A4 less the 22mm margins leaves 253mm of page. An image with no ceiling can
+     be taller than that, and one that cannot fit anywhere — while `break-inside:
+     avoid` above forbids splitting it — takes the pagination down with it. The
+     cap is the page, so the worst case is an image on a page of its own. */
   .sheet img {
     max-width: 100%;
+    max-height: 240mm;
+    height: auto;
   }
   /* Paper carries the same colours as the screen — the callout tones, the link
      blue, the code tint. A printed document should look like the document. */

@@ -8,7 +8,9 @@
 #[cfg(windows)]
 pub fn print_to_pdf(window: tauri::WebviewWindow, path: String) -> Result<(), String> {
     use std::sync::mpsc;
-    use webview2_com::Microsoft::Web::WebView2::Win32::ICoreWebView2_7;
+    use webview2_com::Microsoft::Web::WebView2::Win32::{
+        ICoreWebView2Environment6, ICoreWebView2_2, ICoreWebView2_7,
+    };
     use webview2_com::PrintToPdfCompletedHandler;
     use windows::core::{Interface, HSTRING};
 
@@ -35,18 +37,44 @@ pub fn print_to_pdf(window: tauri::WebviewWindow, path: String) -> Result<(), St
                         "WebView2 sürümü PDF üretimini desteklemiyor".to_string()
                     })?;
 
+                    // A4, not the runtime's default. `@page { size: A4 }` in the
+                    // stylesheet does NOT reach here — WebView2 paginates with
+                    // its own settings and the file came out US Letter
+                    // (612x792pt) on a machine that has never seen Letter paper.
+                    // Margins stay with the stylesheet; only the sheet size is
+                    // the exporter's to know. In inches, because that is the
+                    // unit the interface speaks.
+                    let settings = core
+                        .cast::<ICoreWebView2_2>()
+                        .ok()
+                        .and_then(|two| two.Environment().ok())
+                        .and_then(|env| env.cast::<ICoreWebView2Environment6>().ok())
+                        .and_then(|env| env.CreatePrintSettings().ok());
+                    if let Some(settings) = settings.as_ref() {
+                        let _ = settings.SetPageWidth(8.27);
+                        let _ = settings.SetPageHeight(11.69);
+                        let _ = settings.SetShouldPrintBackgrounds(true);
+                    }
+
                     let finished = done.clone();
                     printer
                         .PrintToPdf(
                             &HSTRING::from(path.as_str()),
-                            None, // default settings; the sheet's @page rules apply
+                            settings.as_ref(),
                             &PrintToPdfCompletedHandler::create(Box::new(
                                 move |code, ok| {
                                     let outcome = match (code, ok) {
                                         (Ok(()), true) => Ok(()),
-                                        (Ok(()), false) => {
-                                            Err("PDF yazılamadı".to_string())
-                                        }
+                                        // The one cause worth naming: the file
+                                        // is open in a reader, which holds it
+                                        // locked. The save dialog has already
+                                        // asked about overwriting and been told
+                                        // yes, so "couldn't write" on its own
+                                        // reads as the app being broken.
+                                        (Ok(()), false) => Err(
+                                            "PDF yazılamadı — dosya başka bir programda açık olabilir"
+                                                .to_string(),
+                                        ),
                                         (Err(error), _) => Err(error.to_string()),
                                     };
                                     let _ = finished.send(outcome);

@@ -76,21 +76,28 @@ export function renderPrintable(markdown, folder) {
   return sheet;
 }
 
-/** Waits for the sheet's images, so none of them prints as a hole. */
+/**
+ * Waits for the sheet's images, so none of them prints as a hole.
+ *
+ * `decode()` rather than the load event: `complete` only promises the bytes
+ * arrived, and the exporter needs the bitmap. Both are awaited because an image
+ * that fails still has to stop being waited for — a picture nobody can read must
+ * never cost the writer the PDF.
+ */
 function imagesReady(sheet) {
-  const images = [...sheet.querySelectorAll("img")].filter(
-    (image) => !image.complete,
-  );
+  const images = [...sheet.querySelectorAll("img")];
   if (images.length === 0) return Promise.resolve();
 
   return Promise.all(
-    images.map(
-      (image) =>
-        new Promise((done) => {
+    images.map(async (image) => {
+      if (!image.complete) {
+        await new Promise((done) => {
           image.onload = done;
           image.onerror = done;
-        }),
-    ),
+        });
+      }
+      await image.decode().catch(() => {});
+    }),
   );
 }
 
@@ -123,6 +130,7 @@ async function onSheet(markdown, folder, use) {
     await imagesReady(sheet);
     // Let the layout settle before the WebView paginates it.
     await new Promise((done) => requestAnimationFrame(() => done()));
+
     return await use();
   } finally {
     host.remove();
