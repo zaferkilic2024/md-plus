@@ -83,6 +83,24 @@ export function matchRecord(records, path, signature) {
 export const movedFrom = (record, path) => Boolean(record) && !samePath(record.yol, path);
 
 /**
+ * Whether a record found at a DIFFERENT path may be adopted.
+ *
+ * The signature says "these are the same bytes". It cannot say whether that is
+ * because the file moved or because it was copied — and the two want opposite
+ * answers. What tells them apart is not in the record: it is on the disk. If
+ * the address the record still holds has a file at it, nothing moved, and this
+ * is a second copy that must start empty. If that address is empty, the file
+ * went somewhere and the record should follow.
+ *
+ * Getting this wrong is not a small thing: the copy opened wearing the
+ * original's marks, and adopting rewrote the record's path — so the ORIGINAL
+ * then had no record at its own address, and the two files traded the notes
+ * back and forth on every open.
+ */
+export const adoptable = (record, path, sourceStillExists) =>
+  Boolean(record) && (!movedFrom(record, path) || !sourceStillExists);
+
+/**
  * A file name for a new record: readable enough that the folder can be looked
  * at by a human, unique enough that two `notlar.md` never share one.
  */

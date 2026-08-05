@@ -32,6 +32,7 @@ import { exists, readDir, readTextFile, remove, writeTextFile } from "@tauri-app
 import { ANNOTATIONS_DIR, appSubfolder } from "./app-folder.js";
 import { fileNameOf } from "./paths.js";
 import {
+  adoptable,
   matchRecord,
   movedFrom,
   nextId,
@@ -154,6 +155,11 @@ export async function findRecord(documentPath, signature) {
   }
 
   if (movedFrom(found, documentPath)) {
+    // Hit by signature, so this file is byte-for-byte what the record
+    // describes — but that is true of a copy as well as of a move, and the
+    // disk is the only place the difference is written. See `adoptable`.
+    if (!adoptable(found, documentPath, await exists(found.yol))) return null;
+
     const moved = { ...found, yol: documentPath, belge: fileNameOf(documentPath) };
     await commit((current) => withRecord(current, moved));
     await patchRecord(moved);
