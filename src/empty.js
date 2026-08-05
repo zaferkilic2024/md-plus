@@ -15,6 +15,7 @@
 // power bar hold their size, the quadrants take the slack, and a short window
 // scrolls the canvas rather than clipping a card.
 
+import { betaBadge, createAboutBlock } from "./about.js";
 import { t } from "./i18n.js";
 
 const svg = (paths, size = 19) =>
@@ -33,56 +34,33 @@ export function createEmptyState({ onOpen, onNew, recents, ways = true }) {
     <div class="ic">
       <div class="marka"><span>md</span><i>+</i></div>
       <h2>${t("empty.title")}</h2>
-      <p class="spot">${t("empty.spot")}</p>
+      <p class="spot">${t("empty.spot")}<span class="beta-slot"></span></p>
 
       <div class="girisler"${ways ? "" : " hidden"}>
-        <div class="giris" data-act="new">
-          ${svg('<path d="M12 5v14M5 12h14"/>', 17)}
+        <button class="giris giris-birincil" data-act="new">
+          ${svg('<path d="M12 5v14M5 12h14"/>', 16)}
           <span class="et">${t("empty.new")}</span>
-        </div>
-        <div class="ayrac-d"></div>
-        <div class="giris" data-act="open">
-          ${svg('<path d="M3 7a1 1 0 0 1 1-1h5l2 2h8a1 1 0 0 1 1 1v9a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1z"/>', 17)}
+        </button>
+        <button class="giris" data-act="open">
+          ${svg('<path d="M3 7a1 1 0 0 1 1-1h5l2 2h8a1 1 0 0 1 1 1v9a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1z"/>', 16)}
           <span class="et">${t("empty.open")}</span>
-        </div>
+        </button>
       </div>
       <p class="empty-hint"${ways ? "" : " hidden"}>${t("empty.hintPre")}<code>.md</code>${t("empty.hintPost")}</p>
     </div>`;
 
   const ic = empty.querySelector(".ic");
 
-  // Two faces, never both. On first run (no history) the four-legged intro is
-  // shown once — this whole screen is a first-and-only-time thing (Zafer, 18
-  // Tem). The moment there is a history, the returning writer gets their own
-  // shelf INSTEAD of the cards: their documents matter more than the pitch.
-  if (!ways) {
-    // Nothing below the promise: the page that called for this has its own
-    // things to say, and they move up into the space.
-  } else if (recents) {
-    ic.append(recents);
-  } else {
-    ic.insertAdjacentHTML(
-      "beforeend",
-      `<div class="kartlar">
-        <div class="kart">
-          <div class="kart-ikon">${svg('<rect x="4" y="8" width="11" height="11" rx="1.4"/><path d="M9 8V5.5a1 1 0 0 1 1-1h9a1 1 0 0 1 1 1v10a1 1 0 0 1-1 1h-2"/>', 34)}</div>
-          <div><h3>${t("empty.card1.title")}</h3><p>${t("empty.card1.body")}</p></div>
-        </div>
-        <div class="kart">
-          <div class="kart-ikon">${svg('<path d="M4 12h11"/><path d="M11 8l4 4-4 4"/><path d="M19.5 5v14"/>', 34)}</div>
-          <div><h3>${t("empty.card2.title")}</h3><p>${t("empty.card2.body")}</p></div>
-        </div>
-        <div class="kart">
-          <div class="kart-ikon">${svg('<path d="M5 5h14a1 1 0 0 1 1 1v9a1 1 0 0 1-1 1h-8l-4 3v-3H5a1 1 0 0 1-1-1V6a1 1 0 0 1 1-1z"/>', 34)}</div>
-          <div><h3>${t("empty.card3.title")}</h3><p>${t("empty.card3.body")}</p></div>
-        </div>
-        <div class="kart">
-          <div class="kart-ikon">${svg('<path d="M12 3v4M12 17v4M3 12h4M17 12h4M6.2 6.2l2.6 2.6M15.2 15.2l2.6 2.6M17.8 6.2l-2.6 2.6M8.8 15.2l-2.6 2.6"/>', 34)}</div>
-          <div><h3>${t("empty.card4.title")}</h3><p>${t("empty.card4.body")}</p></div>
-        </div>
-      </div>`,
-    );
-  }
+  empty.querySelector(".beta-slot").replaceWith(betaBadge());
+
+  // Two faces, never both — the rule KR-62 set, now over better cards.
+  //
+  // A history means the app is already in use, and someone who is using it does
+  // not need to be told what it does (Zafer, 6 Ağu): they get their own shelf,
+  // and the pitch goes back to being one click away under the mark. On first
+  // run there is no shelf to give, and the block that describes the app is
+  // exactly what the screen is for.
+  if (ways) ic.append(recents ?? createAboutBlock());
 
   if (ways) {
     empty.querySelector('[data-act="new"]').onclick = onNew;

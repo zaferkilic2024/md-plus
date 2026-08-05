@@ -5,24 +5,15 @@
 // is the only place the app describes itself, and describing itself is exactly
 // what an app has to keep doing for someone who opened it three weeks ago.
 //
-// So this is not a second welcome screen. It is the same one — createEmptyState
-// draws the top of it — with the part that only makes sense when you already
-// have the app: what it does, that it is open source, and how to reach it.
+// So this is not a second welcome screen. Since 6 Ağu it is literally the same
+// one: `about.js` holds the block both screens are made of, and this page is
+// that block plus a way back. What differs is only what an EMPTY window needs —
+// the ways in, the drag hint, the shelf of recent documents.
 
-import { open as openExternal } from "@tauri-apps/plugin-shell";
-import { getVersion } from "@tauri-apps/api/app";
 import { createEmptyState } from "./empty.js";
+import { createAboutBlock } from "./about.js";
 import { GLYPH, icon } from "./strip.js";
 import { t } from "./i18n.js";
-
-const REPO = "https://github.com/zaferkilic2024/md-plus";
-
-/** The three doors, in the order someone actually needs them. */
-const LINKS = [
-  { key: "home.repo", url: REPO, glyph: GLYPH.code },
-  { key: "home.issues", url: `${REPO}/issues`, glyph: GLYPH.issue },
-  { key: "home.license", url: `${REPO}/blob/main/LICENSE`, glyph: GLYPH.license },
-];
 
 /**
  * The layer. It starts under the window's own row — the same rule Aktarma
@@ -35,54 +26,12 @@ export function createHome({ onClose }) {
   const sheet = document.createElement("div");
   sheet.className = "home-sheet";
 
-  // Only the head of the welcome screen: the mark, the promise, the line under
-  // it. No "new / open", no drag hint, no cards — the reader is already inside
-  // the app with a document open behind this page, and every one of those is
-  // waiting for them on the opening screen anyway.
+  // The head of the opening screen — mark, title, promise — and then exactly
+  // the block that screen carries below it. The two are the same page now
+  // (Zafer, 6 Ağu); only the ways in and the back arrow differ.
   sheet.append(createEmptyState({ ways: false }));
+  sheet.append(createAboutBlock());
 
-  // What it can do, in one line each. Not the cards again — the cards are four
-  // ideas, these are the things a reader asks "can it…?" about.
-  const can = document.createElement("div");
-  can.className = "home-can";
-  can.innerHTML = `<h3>${t("home.canTitle")}</h3><ul>${[
-    "home.can1",
-    "home.can2",
-    "home.can3",
-    "home.can4",
-    "home.can5",
-  ]
-    .map((key) => `<li>${t(key)}</li>`)
-    .join("")}</ul>`;
-  sheet.append(can);
-
-  const about = document.createElement("div");
-  about.className = "home-about";
-  about.innerHTML = `
-    <div class="home-rule"></div>
-    <p class="home-open">${t("home.openSource")}</p>
-    <div class="home-links"></div>
-    <p class="home-version"></p>`;
-
-  const links = about.querySelector(".home-links");
-  for (const link of LINKS) {
-    const button = document.createElement("button");
-    button.className = "home-link";
-    button.innerHTML = `${icon(link.glyph, 15)}<span>${t(link.key)}</span>`;
-    // Opened in the reader's browser, not in here: this app is offline and has
-    // no business rendering a web page (the embed card is for .md, KR-…).
-    button.onclick = () => openExternal(link.url).catch(() => {});
-    button.title = link.url;
-    links.append(button);
-  }
-
-  getVersion()
-    .then((version) => {
-      about.querySelector(".home-version").textContent = `MD Plus ${version}`;
-    })
-    .catch(() => {});
-
-  sheet.append(about);
   layer.append(sheet);
 
   // The way out, said in words.

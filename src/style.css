@@ -1215,8 +1215,11 @@ body.maximized .resize-edges {
 .empty .ic {
   margin: auto;
   width: 100%;
-  max-width: 600px;
-  padding: 36px 32px;
+  /* Wide enough for the band's five headings to each hold ONE line. The
+     reference is drawn this wide for exactly that reason: a title that wraps
+     stops being a label and starts being a sentence. */
+  max-width: 980px;
+  padding: 22px 32px 26px;
   display: flex;
   flex-direction: column;
   align-items: center;
@@ -1224,10 +1227,13 @@ body.maximized .resize-edges {
 
 /* the round app mark: lowercase "md" with the "+" as part of the word, dead
    centred (align-items:center, not baseline). The one strong accent focus. */
+/* 72, not 120. The mark used to open a screen that had four cards under it;
+   it now opens one that says everything the app does, and 120px of logo was
+   the difference between fitting in a window and not. */
 .empty .marka {
-  width: 120px;
-  height: 120px;
-  margin-bottom: 24px;
+  width: 104px;
+  height: 104px;
+  margin-bottom: 18px;
   border-radius: 50%;
   background: radial-gradient(120% 120% at 30% 25%, #2a6299 0%, var(--accent) 55%, var(--accent-deep) 100%);
   color: #fff;
@@ -1237,17 +1243,20 @@ body.maximized .resize-edges {
   gap: 2px;
   font-family: var(--reading);
   font-weight: 600;
-  font-size: 50px;
+  font-size: 44px;
   line-height: 1;
   letter-spacing: -0.02em;
-  box-shadow: 0 16px 38px -12px rgba(19, 58, 98, 0.55);
+  box-shadow: 0 14px 32px -12px rgba(19, 58, 98, 0.55);
 }
 .empty .marka i {
   font-style: normal;
   color: rgba(255, 255, 255, 0.72);
 }
+/* Serif and large: this is the one line on the screen that is the product's
+   own voice, and the reading face is the app's voice. */
 .empty h2 {
-  font-size: 18px;
+  font-family: var(--reading);
+  font-size: 30px;
   line-height: 1.3;
   letter-spacing: -0.01em;
   font-weight: 600;
@@ -1263,24 +1272,39 @@ body.maximized .resize-edges {
 
 /* the two ways in — concept icons, both equal: no primary, no fill, no frame
    inside a frame. */
+/* Two buttons, not one capsule holding two halves — and the first one is
+   FILLED. That crosses the app's own line ("no filled buttons"), and it is
+   crossed knowingly: Zafer asked for the reference screen exactly as drawn.
+   This is the only filled button in the app, and it is on the one screen that
+   has nothing else to press. */
 .empty .girisler {
   display: inline-flex;
-  gap: 4px;
+  gap: 10px;
   margin-top: 18px;
-  background: var(--surface);
-  border: 1px solid var(--frame);
-  border-radius: var(--r2);
-  padding: 4px;
-  box-shadow: var(--lift1);
 }
 .empty .giris {
   display: flex;
   align-items: center;
-  gap: 7px;
-  padding: 6px 12px;
-  border-radius: var(--r1);
+  gap: 8px;
+  padding: 9px 18px;
+  border: 1px solid var(--frame);
+  border-radius: 999px;
+  background: var(--surface);
+  font: inherit;
   cursor: pointer;
   color: var(--secondary);
+}
+/* The reference's own navy, not the app accent it nearly is: Zafer asked for
+   that screen exactly as drawn. */
+.empty .giris-birincil {
+  border-color: #1e4272;
+  background: #1e4272;
+  color: #fff;
+}
+.empty .giris-birincil:hover {
+  background: var(--accent-deep);
+  border-color: var(--accent-deep);
+  color: #fff;
 }
 .empty .giris svg {
   flex: none;
@@ -1297,12 +1321,7 @@ body.maximized .resize-edges {
   background: var(--hover);
   color: var(--ink);
 }
-.empty .ayrac-d {
-  width: 1px;
-  align-self: stretch;
-  background: var(--rule);
-  margin: 2px 0;
-}
+
 /* drag is a hint, not a button: plain muted text under the strip. */
 .empty .empty-hint {
   margin-top: 10px;
@@ -1325,48 +1344,6 @@ body.maximized .resize-edges {
 }
 .empty .empty-recents .menu-heading {
   padding: 4px 9px 6px;
-}
-
-/* the four legs — small cards, icon beside one line of warm copy. Natural
-   height, not stretched to fill. */
-.empty .kartlar {
-  width: 100%;
-  margin-top: 22px;
-  display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: 8px;
-}
-.empty .kart {
-  min-width: 0;
-  display: flex;
-  align-items: center;
-  gap: 13px;
-  background: var(--surface);
-  border: 1px solid var(--frame);
-  border-radius: var(--r2);
-  padding: 14px 15px;
-}
-.empty .kart-ikon {
-  flex: none;
-  width: 56px;
-  height: 56px;
-  border-radius: var(--r2);
-  background: var(--n2);
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  color: var(--n7);
-}
-.empty .kart h3 {
-  font-size: 13px;
-  font-weight: 600;
-  letter-spacing: -0.01em;
-  margin-bottom: 2px;
-}
-.empty .kart p {
-  font-size: 12px;
-  color: var(--secondary);
-  line-height: 1.45;
 }
 
 /* Dragging a file: the whole surface says it will take it. */
@@ -3958,57 +3935,113 @@ body.dragging .body {
 .home-sheet .empty .empty-hint[hidden] {
   display: none;
 }
-/* "Can it…?", answered in one line each. Prose, not chrome: the reading face and
-   a measure narrow enough to read. */
-.home-can {
+/* Five things the app does, one band across the page. No boxes: five frames is
+   five things to read past, and the screen stopped fitting in a window. */
+.home-cards {
   width: 100%;
-  max-width: 620px;
-  margin-top: 8px;
+  margin-top: 22px;
+  display: grid;
+  grid-template-columns: repeat(5, 1fr);
+  gap: 18px;
 }
-.home-can h3 {
-  margin: 0 0 12px;
-  font: 600 13.5px/1 var(--ui);
-  color: var(--ink);
+.home-card {
+  text-align: center;
 }
-.home-can ul {
-  margin: 0;
-  padding-left: 18px;
-  list-style: none;
-}
-.home-can li {
-  position: relative;
+.home-card-icon {
   margin-bottom: 10px;
-  font-size: 13.5px;
-  line-height: 1.62;
+}
+.home-card h3 {
+  margin: 0 0 5px;
+  font: 600 13.5px/1.3 var(--ui);
+  color: var(--ink);
+  white-space: nowrap;
+}
+.home-card p {
+  margin: 0;
+  font-size: 12.5px;
+  line-height: 1.5;
   color: var(--secondary);
 }
-/* A quiet mark in the accent, not a bullet the browser chose. */
-.home-can li::before {
-  content: "";
-  position: absolute;
-  left: -14px;
-  top: 0.62em;
-  width: 5px;
-  height: 5px;
-  border-radius: 50%;
-  background: #c3d2e0;
+/* The state, at the end of the promise. Not a pill: beside a sentence a filled
+   chip reads as a control. */
+.home-beta {
+  margin-left: 6px;
+  font-size: 11px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--faint);
 }
-.home-can code {
-  font: 11.5px/1 var(--mono);
-  background: var(--n2);
-  padding: 1px 4px;
-  border-radius: 3px;
+/* Language, licence and the three doors on one line — each is one short fact,
+   and stacked they took a third of the screen to say almost nothing. */
+.home-links {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: center;
+  gap: 8px 20px;
+}
+.home-foot-note {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 12.5px;
+  color: var(--faint);
+}
+/* The line about how it was made, with a hairline running out to each side —
+   it is a colophon, and a colophon is set apart, not stacked. */
+.home-vibe {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  margin: 16px 0 0;
+  font-size: 12.5px;
+  line-height: 1.6;
+  color: var(--faint);
+  text-align: center;
+}
+.home-vibe::before,
+.home-vibe::after {
+  content: "";
+  flex: 1;
+  height: 1px;
+}
+/* Pulled in from the edges and faded outward, so the colophon sits in its own
+   clearing instead of being ruled off from the page. */
+.home-vibe::before {
+  margin-left: 12%;
+  background: linear-gradient(90deg, transparent, var(--rule));
+}
+.home-vibe::after {
+  margin-right: 12%;
+  background: linear-gradient(90deg, var(--rule), transparent);
+}
+.home-vibe span::before {
+  content: "✦";
+  margin-right: 8px;
+  color: var(--n4);
+}
+.home-vibe span::after {
+  content: "✦";
+  margin-left: 8px;
+  color: var(--n4);
 }
 
 .home-about {
   width: 100%;
-  max-width: 620px;
   text-align: center;
 }
+/* Faded at both ends rather than cut: a rule that stops dead draws a border,
+   and this one is only parting two things on the same page. */
 .home-rule {
   height: 1px;
-  background: var(--frame);
-  margin: 26px 0 20px;
+  background: linear-gradient(
+    90deg,
+    transparent,
+    var(--frame) 22%,
+    var(--frame) 78%,
+    transparent
+  );
+  margin: 16px 0 14px;
 }
 .home-open {
   margin: 0 0 18px;
@@ -4028,22 +4061,17 @@ body.dragging .body {
   display: flex;
   align-items: center;
   gap: 7px;
-  border: 1px solid var(--frame);
-  background: var(--surface);
-  border-radius: var(--r1);
-  padding: 7px 12px;
-  font: 12.5px/1 var(--ui);
-  color: var(--secondary);
-  cursor: default;
+  border: 0;
+  background: none;
+  padding: 4px 0;
+  font: 600 12.5px/1 var(--ui);
+  color: var(--ink);
+  cursor: pointer;
 }
 .home-link:hover {
-  background: var(--n2);
-  color: var(--ink);
-}
-.home-version {
-  margin: 22px 0 0;
-  font: 10.5px/1 var(--mono);
-  color: var(--faint);
+  background: none;
+  color: var(--accent);
+  text-decoration: underline;
 }
 /* Top left, where a way back is looked for, and fixed so it survives the scroll.
    No fill, no frame — its weight comes from the word and from being first. */
