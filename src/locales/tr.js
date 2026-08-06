@@ -80,7 +80,6 @@ export const tr = {
   "menu.docMenu": "Belge menüsü",
   "menu.docInfo": "Belge bilgisi",
   "info.unsaved": "Henüz kaydedilmedi",
-  "info.copyPath": "Yolu kopyala",
   "info.openFolder": "Klasörü aç",
   "info.size": "Boyut",
   "info.words": "Kelime",

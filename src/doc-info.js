@@ -68,19 +68,38 @@ export function statsOf({ text = "", marks = [], isPdf = false, bytes = null } =
  */
 export function shortPath(path, max = 42) {
   if (!path || path.length <= max) return path ?? "";
-  const cut = /[\\/]/;
-  const tailWanted = Math.max(max - 12, Math.ceil(max * 0.6));
 
-  let tail = path.slice(path.length - tailWanted);
-  const tailBreak = tail.search(cut);
-  // Only if it does not eat the name: a tail trimmed back to the last separator
-  // could leave the file itself half-shown.
-  if (tailBreak > 0 && tailBreak < tailWanted / 2) tail = tail.slice(tailBreak);
+  const lastCut = Math.max(path.lastIndexOf("\\"), path.lastIndexOf("/"));
+  const name = lastCut === -1 ? path : path.slice(lastCut + 1);
+  // "C:", "\\" (UNC) or "/" — kept whatever else goes, so the reader can always
+  // see which drive or share this is.
+  const root = /^([A-Za-z]:|[\\/]{1,2})/.exec(path)?.[1] ?? "";
 
-  let head = path.slice(0, max - tail.length - 1);
-  const headBreak = head.lastIndexOf("\\") > head.lastIndexOf("/") ? head.lastIndexOf("\\") : head.lastIndexOf("/");
-  if (headBreak > 2) head = head.slice(0, headBreak + 1);
+  // A name that cannot fit even next to the root is cut at its END, never at
+  // its start: "…olum-3-sonuclar.md" reads as a file called "olum-3", which is
+  // a different file. A name is identified by its beginning.
+  if (root.length + 1 + name.length > max) {
+    const lead = root ? `${root}…` : "";
+    return `${lead}${name.slice(0, Math.max(4, max - lead.length - 1))}…`;
+  }
 
+  // Otherwise the name is shown WHOLE, with as many of the folders above it as
+  // will fit — grown one segment at a time, so no folder name is ever shown
+  // half (that reads as a different folder).
+  let tail = name;
+  let cut = lastCut;
+  while (cut > 0) {
+    const prev = Math.max(path.lastIndexOf("\\", cut - 1), path.lastIndexOf("/", cut - 1));
+    if (prev < 0) break;
+    const wider = path.slice(prev + 1);
+    if (wider.length + 2 > max) break; // no room left for "…" and a root
+    tail = wider;
+    cut = prev;
+  }
+
+  let head = path.slice(0, Math.max(0, max - tail.length - 1));
+  const headBreak = Math.max(head.lastIndexOf("\\"), head.lastIndexOf("/"));
+  if (headBreak > 1) head = head.slice(0, headBreak + 1);
   return `${head}…${tail}`;
 }
 

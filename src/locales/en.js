@@ -79,7 +79,6 @@ export const en = {
   "menu.docMenu": "Document menu",
   "menu.docInfo": "Document info",
   "info.unsaved": "Not saved yet",
-  "info.copyPath": "Copy path",
   "info.openFolder": "Open folder",
   "info.size": "Size",
   "info.words": "Words",

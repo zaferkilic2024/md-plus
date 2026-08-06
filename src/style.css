@@ -699,15 +699,28 @@ body.maximized .resize-edges {
    A card, not rows of verbs: it lives inside a popover but nothing in it is
    pressed except the path and the folder. Width is its own — the menu's 210px
    minimum was written for one-line entries, and a path needs room. */
+/* The card fills the menu rather than setting its own width: `.popover` is
+   300px at most, minus its border and padding, so a 300px card overflowed by
+   12px and `overflow-x: hidden` quietly cut the right edge off the numbers.
+   The menu is widened for this one guest instead — its 210px minimum was
+   written for one-line entries. */
+.popover:has(> .doc-info) {
+  min-width: 300px;
+}
 .doc-info {
-  width: 300px;
+  width: 100%;
   padding: 4px 6px 2px;
 }
 /* The path reads as text and behaves as a button — press it, its folder opens.
    ONE line: it is shortened in the middle (doc-info.js/shortPath), because a
    deep path let to wrap turned this menu into a paragraph. The whole of it is
-   in the tooltip, here and on the tab. */
-.info-path {
+   in the tooltip, here and on the tab.
+
+   `.popover .info-path`, NOT `.info-path`: the card lives inside a menu, and
+   `.popover button` (0,1,1) beats a lone class (0,1,0) — it was taking this
+   line off mono and onto the interface font, which also broke the character
+   count shortPath measures in. The fifth bite of the same trap. */
+.popover .info-path {
   display: block;
   width: 100%;
   padding: 6px 7px;
@@ -723,11 +736,11 @@ body.maximized .resize-edges {
   overflow: hidden;
   cursor: pointer;
 }
-.info-path:hover:not(:disabled) {
+.popover .info-path:hover:not(:disabled) {
   background: var(--hover);
   color: var(--ink);
 }
-.info-path:disabled {
+.popover .info-path:disabled {
   font-family: var(--ui);
   font-size: 12.5px;
   color: var(--faint);

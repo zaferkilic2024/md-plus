@@ -12,7 +12,6 @@
 
 import { EditorView } from "@codemirror/view";
 import { openSettings } from "./settings-panel.js";
-import { goster } from "./shortcuts.js";
 import { GLYPH } from "./strip.js";
 import { fileNameOf } from "./paths.js";
 import { t } from "./i18n.js";

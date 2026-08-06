@@ -31,7 +31,7 @@
   },
   "plugins": {
     "shell": {
-      "open": "(https://|[A-Za-z]:[\\\\/]|/)[\\s\\S]*"
+      "open": "(https://|[A-Za-z]:|[\\\\/])[\\s\\S]*"
     }
   },
   "bundle": {

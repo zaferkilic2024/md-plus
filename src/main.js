@@ -198,6 +198,15 @@ const chromeDeps = {
     const tab = activeTab();
     if (!tab) return;
     if (command === "close") return closeTab(activeIndex);
+
+    // An empty document has nothing to print, export, summarise or carry
+    // across, and the row draws those pale for exactly that reason (KR-101).
+    // The shortcut has to agree: a key that does what a greyed button will not
+    // do is the app contradicting itself. Silence is the right answer here
+    // (Zafer, 6 Ağu) — nothing was attempted, so there is nothing to report.
+    const needsText = ["transfer", "print", "printPaper", ...documentJobs()];
+    if (needsText.includes(command) && isEmptyDoc(tab)) return;
+
     // Aktarma takes a PDF on its left-hand side (28 Tem): it is a reading panel,
     // and reading is what a PDF is for.
     if (command === "transfer") return openTransfer();
@@ -1821,12 +1830,18 @@ async function showDocInfo(anchor) {
 
   const stats = statsOf({
     text: tab.view ? tab.view.state.doc.toString() : "",
-    marks: tab.marks?.listing() ?? [],
+    // The RECORDS, not what is painted right now. `listing()` answers from the
+    // live ranges in a .md, so a mark whose anchor could not reattach — kept,
+    // not deleted (KR-16) — is missing from it: the card said "0 işaret" over a
+    // workshop record that was still there. The PDF side already asked the
+    // records; both kinds answer the same question now.
+    marks: (tab.marks?.records ?? []).map((record) => ({ record })),
     isPdf: isPdfTab(tab),
     // Measured when the PDF was opened; a document weighs its own text.
     bytes: isPdfTab(tab) ? (tab.bytes ?? 0) : null,
   });
 
+  let menu = null;
   const card = createDocInfo({
     path: tab.path ?? null,
     stats,
@@ -1836,10 +1851,15 @@ async function showDocInfo(anchor) {
     // Never swallow this: the first version caught and dropped the error, so a
     // refused path looked exactly like a working one (Zafer: "klasör açmak
     // çalışmıyor" — and the reason was invisible).
-    onOpenFolder: () =>
-      openPath(folderOf(tab.path)).catch((error) => console.warn("klasör açılamadı:", error)),
+    onOpenFolder: () => {
+      // Every other verb in a menu closes it on the way out; this one is inside
+      // a card, so popover's own row handler never sees it and the menu stayed
+      // open behind Explorer.
+      menu?.close?.();
+      openPath(folderOf(tab.path)).catch((error) => console.warn("klasör açılamadı:", error));
+    },
   });
-  popover(anchor, [{ node: card }]);
+  menu = popover(anchor, [{ node: card }]);
 }
 
 function toggleHome() {

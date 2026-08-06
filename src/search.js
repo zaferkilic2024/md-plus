@@ -668,7 +668,7 @@ class Search {
 
     if (!this.hits.length) return;
     this.at = (this.at + step + this.hits.length) % this.hits.length;
-    this.paint({ reveal: true });
+    this.paint({ reveal: true, land: true });
   }
 
   /**
@@ -685,16 +685,34 @@ class Search {
     this.paintPdf();
   }
 
-  paint({ reveal = false } = {}) {
+  /**
+   * @param {boolean} reveal  scroll the current hit into view
+   * @param {boolean} land    put the CURSOR on it as well
+   *
+   * `land` is what makes a hit inside hidden text visible (Zafer, 6 Ağu). The
+   * writing surface shows raw Markdown only on the line holding the cursor, so
+   * a match inside a link's target — `](tez.md)` — was scrolled to and then not
+   * shown: the screen moved and nothing appeared. Landing the cursor opens that
+   * line the way any other visit would, and the reader sees what was found.
+   *
+   * Only while WALKING the hits (‹ › / Enter), never while typing in the box:
+   * moving the cursor on every keystroke would drag the document out from under
+   * a writer who is still deciding what to look for.
+   */
+  paint({ reveal = false, land = false } = {}) {
+    const hit = this.hits[this.at];
     const effects = [
       setHits.of({ needle: this.field.value, hits: this.hits, at: this.at }),
     ];
-    if (reveal) {
-      effects.push(
-        EditorView.scrollIntoView(this.hits[this.at].from, { y: "center" }),
-      );
+    if (reveal && hit) {
+      effects.push(EditorView.scrollIntoView(hit.from, { y: "center" }));
     }
-    this.view.dispatch({ effects });
+    this.view.dispatch({
+      effects,
+      // The cursor, not a selection: selecting the hit would arm the palette and
+      // put a floating box over the very thing being looked at.
+      ...(land && hit ? { selection: { anchor: hit.from } } : {}),
+    });
     this.tell();
   }
 

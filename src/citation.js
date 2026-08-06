@@ -217,13 +217,19 @@ export function countCitations(text) {
   const faces = CITE_GLYPHS.map((glyph) => glyph.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")).join("|");
   const cite = new RegExp(`\\[(?:${faces})\\]\\(`, "gu");
   let count = 0;
-  let fenced = false;
+  // WHICH fence opened, not merely "a fence did": a ``` line inside a ~~~ block
+  // is content, and treating it as the closer let the rest of the document be
+  // counted as prose.
+  let fence = null;
   for (const line of lines(text)) {
-    if (/^\s*(```|~~~)/.test(line)) {
-      fenced = !fenced;
+    const mark = /^\s*(`{3,}|~{3,})/.exec(line);
+    if (mark) {
+      const char = mark[1][0];
+      if (!fence) fence = char;
+      else if (char === fence) fence = null;
       continue;
     }
-    if (fenced) continue;
+    if (fence) continue;
     count += line.match(cite)?.length ?? 0;
   }
   return count;
