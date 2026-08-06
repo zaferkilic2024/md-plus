@@ -41,12 +41,55 @@ const PAGE = {
   down: '<path d="M6 9l6 6 6-6"/>',
 };
 
+/**
+ * Is there anything in this document to act on?
+ *
+ * Printing an empty page, writing an empty PDF, summarising nothing, carrying
+ * nothing into Aktarma — each of those is a control that answers with a shrug
+ * (Zafer, 6 Aug). Whitespace counts as empty: a document holding two blank
+ * lines has nothing to print either.
+ *
+ * Only the head of the text is scanned, because this is asked on every
+ * keystroke and the answer never lives further in: a document whose first
+ * couple of thousand characters are blank is empty for anyone's purposes.
+ * A PDF is never empty — it is what it is on disk.
+ */
+export function isEmptyDoc(tab) {
+  if (!tab || tab.kind === "pdf") return !tab;
+  const doc = tab.view?.state.doc;
+  if (!doc || doc.length === 0) return true;
+  return !/\S/.test(doc.sliceString(0, Math.min(doc.length, 2000)));
+}
+
 function toolButton(glyph, title, onClick) {
   const button = document.createElement("button");
   button.className = "tool";
   button.title = title;
   button.innerHTML = icon(glyph, 19);
   button.onclick = onClick;
+  return button;
+}
+
+/**
+ * The same button, wearing the one glyph that means "the model speaks here"
+ * (GLYPH.ai) in its top corner.
+ *
+ * Özet · Başlık · Spot are drawn like the row's other tools, so nothing on them
+ * said that pressing one calls a model — and that is the one thing a reader
+ * wants to know BEFORE pressing (Zafer, 6 Aug). The mark is the burst itself
+ * rather than a new drawing: one drawing, one meaning.
+ *
+ * It sits on its own paper-coloured disc because at 19px the icons have no free
+ * corner to give it; the disc masks the stroke underneath instead of muddying
+ * it, and follows the button's hover so the seam never shows.
+ */
+function aiToolButton(glyph, title, onClick) {
+  const button = toolButton(glyph, title, onClick);
+  button.classList.add("tool-ai");
+  const badge = document.createElement("span");
+  badge.className = "ai-badge";
+  badge.innerHTML = icon(GLYPH.ai, 9);
+  button.append(badge);
   return button;
 }
 
@@ -63,9 +106,28 @@ export function createDocTools({ activeTab, onCommand }) {
   /** The page counter, and the way to any page: a number you can type over. */
   let counter = null;
 
+  /** The buttons whose life depends on the document rather than on the row:
+      they need text, and the AI ones need a model as well. Kept as a list so a
+      keystroke can flip them without rebuilding the row — rebuilding on every
+      character would throw away the DOM under the reader's pointer. */
+  let gated = [];
+  const gate = (button, job) => {
+    gated.push({ button, job });
+    return button;
+  };
+
+  /** Called on every edit (main.js/onChange) and after each build. */
+  const updateEnabled = () => {
+    const empty = isEmptyDoc(activeTab());
+    for (const { button, job } of gated) {
+      button.disabled = empty || (job ? !provider(job) : false);
+    }
+  };
+
   const build = () => {
     dom.replaceChildren();
     counter = null;
+    gated = [];
     const tab = activeTab();
     if (!tab) return;
 
@@ -77,7 +139,13 @@ export function createDocTools({ activeTab, onCommand }) {
   };
 
   /** Aktarma, on the row rather than buried in ⋯. Both kinds of document get
-      it: a PDF goes in on the left, to be read from (KR-68). */
+      it: a PDF goes in on the left, to be read from (KR-68).
+
+      LAST on the row, right before ⋯ (Zafer, 6 Aug). Two reasons, and the
+      second is the one that matters: it is the way OUT of this document, so it
+      belongs at the end of the things you do inside it; and sitting first, next
+      to the search box and the navigation, it read as one more place to look
+      something up in the document you are already in. */
   const transferButton = () =>
     toolButton(GLYPH.transfer, `${t("menu.transfer")} · Ctrl+Shift+A`, () =>
       onCommand("transfer"),
@@ -87,7 +155,6 @@ export function createDocTools({ activeTab, onCommand }) {
     const pdf = tab.pdf;
     if (!pdf) return;
 
-    dom.append(transferButton(), separator());
     const fit = toolButton(FIT, t("doc.fit"), () => {
       pdf.fitToScreen();
       showFit();
@@ -143,33 +210,46 @@ export function createDocTools({ activeTab, onCommand }) {
 
     const total = document.createElement("span");
     total.className = "page-total";
-    dom.append(counter, total);
+    dom.append(counter, total, separator(), transferButton());
     setPage(pdf.page, pdf.pageCount);
   };
 
   const buildDocument = (tab) => {
+    // Two acts, two buttons, the same pair the ⋯ menu carries: ink on paper, and
+    // a file written to disk. On the row they sit together because the question
+    // a reader has is "how do I get this out of here?" and these are the two
+    // answers to it.
     dom.append(
-      transferButton(),
-      separator(),
-      toolButton(GLYPH.printer, `${t("menu.print")} · Ctrl+P`, () => onCommand("printPaper")),
+      gate(toolButton(GLYPH.printer, `${t("menu.print")} · Ctrl+P`, () => onCommand("printPaper"))),
+      gate(
+        toolButton(GLYPH.sheet, `${t("menu.savePdf")} · Ctrl+Shift+P`, () => onCommand("print")),
+      ),
     );
 
-    // The document-wide AI jobs — the ones the ⋯ menu carries. Not greyed when
-    // no model is routed to them: absent, like everywhere else (KR-42).
-    const jobs = documentJobs().filter((job) => provider(job) && GLYPH[job]);
-    if (!jobs.length) return;
-
-    dom.append(separator());
-    for (const job of jobs) {
-      const key = jobShortcut(job);
-      dom.append(
-        toolButton(
+    // The document-wide AI jobs — the ones the ⋯ menu carries.
+    //
+    // With no model routed to them they go PALE rather than away (Zafer, 6 Aug),
+    // which narrows KR-42 to what it was actually protecting: the app must not
+    // grow dead controls that promise something it cannot do. These promise
+    // nothing — they show what is here and that it needs a model, which is the
+    // same argument that put the job rows in Settings before any model existed.
+    // Coming and going would also shove the row sideways (KR-64).
+    const jobs = documentJobs().filter((job) => GLYPH[job]);
+    if (jobs.length) {
+      dom.append(separator());
+      for (const job of jobs) {
+        const key = jobShortcut(job);
+        const button = aiToolButton(
           GLYPH[job],
           key ? `${jobName(job)} · ${goster(key)}` : jobName(job),
           () => onCommand(job),
-        ),
-      );
+        );
+        dom.append(gate(button, job));
+      }
     }
+
+    dom.append(separator(), gate(transferButton()));
+    updateEnabled();
     void tab;
   };
 
@@ -186,5 +266,5 @@ export function createDocTools({ activeTab, onCommand }) {
   };
 
   build();
-  return { dom, refresh: build, setPage };
+  return { dom, refresh: build, setPage, updateEnabled };
 }

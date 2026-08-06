@@ -55,6 +55,24 @@ export function forget(list, path) {
 }
 
 /**
+ * "Listeyi temizle" — the history goes, what is OPEN stays (Zafer, 6 Ağu).
+ *
+ * Clearing everything left the app saying two things at once: five documents on
+ * the tab strip and no history at all, and closing the app did not mend it —
+ * restoring a session deliberately does not touch this list (KR-59, UC-20-K5),
+ * so the five came back to the strip and the list stayed empty until something
+ * new was opened.
+ *
+ * The rule that fixes it does not bend KR-59, it reads it: this is a list of
+ * where you have BEEN. A document open in front of you is not the past, so
+ * clearing the past has nothing to say about it. Order is untouched — the rows
+ * that stay, stay where they were.
+ */
+export function clearExcept(list, keep = []) {
+  return list.filter((entry) => keep.some((path) => samePath(entry, path)));
+}
+
+/**
  * The document was renamed on disk: its row keeps its place under the new name.
  * Before this, the old path sat in the list until it was clicked, said
  * "bulunamadı" and dropped — a stumble the app itself caused (18 Tem review).

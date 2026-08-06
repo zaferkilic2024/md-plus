@@ -200,6 +200,36 @@ export function movedTo(record) {
 }
 
 /**
+ * Bu belgeye YAPILMIŞ alıntıların sayısı — metnin kendisinden okunur.
+ *
+ * "Kaç parça gönderdim" sorusunun cevabı atölyededir (her işaretin `aktarma`
+ * listesi); "bana kaç parça geldi" sorusununki **belgenin içindedir**, çünkü
+ * inen her parça künyesini yanında getirir (KR-81). Kaynağa sormak yanlış yol
+ * olurdu: kaynak başka bir makinede olabilir, silinmiş olabilir, ya da parça
+ * hiç bizim kayıtlarımızdan gelmemiş olabilir.
+ *
+ * Yazılan yüz birdir, tanınan yüzler tümüdür (`CITE_GLYPHS`) — biz fikrimizi
+ * değiştirince okurun belgesindeki eski künyeler sayılmaz olmamalı. Kod çitinin
+ * içi sayılmaz: orada duran şey örnektir, alıntı değil.
+ */
+export function countCitations(text) {
+  if (!text) return 0;
+  const faces = CITE_GLYPHS.map((glyph) => glyph.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")).join("|");
+  const cite = new RegExp(`\\[(?:${faces})\\]\\(`, "gu");
+  let count = 0;
+  let fenced = false;
+  for (const line of lines(text)) {
+    if (/^\s*(```|~~~)/.test(line)) {
+      fenced = !fenced;
+      continue;
+    }
+    if (fenced) continue;
+    count += line.match(cite)?.length ?? 0;
+  }
+  return count;
+}
+
+/**
  * Bir taşımayı kayda ekler ve YENİ listeyi döndürür (kaydı değiştirmez).
  *
  * Aynı hedefe ikinci kez taşımak yeni satır açmaz, o satırın zamanını tazeler

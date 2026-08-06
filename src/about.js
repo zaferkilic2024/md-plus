@@ -81,14 +81,19 @@ const CARDS = [
   { title: "home.card.transfer", body: "home.can4", art: ART.transfer },
 ];
 
-/** The state, at the end of the promise rather than beside the title: a pill
-    next to a heading competes with it, and this word is a footnote to the
-    sentence, not a second title. The window corner says it too — there it is a
-    label on the app, here it is part of what the page is saying. */
+/** The state and the version, at the end of the promise rather than beside the
+    title: a pill next to a heading competes with it, and this is a footnote to
+    the sentence, not a second title. The window corner says "beta" too — there
+    it is a label on the app, here it is part of what the page is saying.
+
+    The number rides along because this is the screen someone is on when they
+    ask it (Zafer, 6 Ağu), and both screens made of this block get it: the one
+    on first run and the one opened three weeks later. `__APP_VERSION__` is
+    baked in from package.json at build time (vite.config.js). */
 export function betaBadge() {
   const badge = document.createElement("span");
   badge.className = "home-beta";
-  badge.textContent = "beta";
+  badge.textContent = `beta ${__APP_VERSION__}`;
   return badge;
 }
 

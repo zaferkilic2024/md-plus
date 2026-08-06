@@ -10,82 +10,100 @@ English · **[Türkçe](README.md)**
 
 </div>
 
-MD Plus is a desktop Markdown app that opens several `.md` files in tabs. Every
-tab both reads and writes; the writing surface is **in-place formatting**: type
-bold and it looks bold, and the raw marks appear only on the line holding the
-cursor. There is no separate preview mode, because there is no need for one.
+MD Plus is an offline desktop Markdown app that opens several `.md` files in
+tabs. Every tab both reads and writes; formatting sits on the text, and there is
+no separate preview.
+
+Everything you write is plain Markdown — nothing of this app's own ever enters
+your `.md` file. Your marks and comments are not kept beside the document
+either, but in the app's own folder, so opening your file in another editor
+shows you nothing but your own text.
 
 ---
 
-## Four pillars
+## Five pillars
 
 ### Work in tabs
 
 All your documents in one window, tab by tab, always within reach. Tabs reorder
 by drag and save themselves — each save lands in a temporary file and is moved
-into place, so a write cut short can never touch your document. Formatting
-comes from a **floating palette** that appears on a selection, and from
-shortcuts: bold, italic, heading, list, quote, code, callout, image, link.
-
-### Transfer between documents
-
-Move a text's standout passages into another document in seconds. The
-**Transfer** screen opens a full layer over the tabs: source on the left, target
-on the right. Travel between the marks (`‹ n/m ›`) and send the piece you chose
-into the target with the **Move** button beside the mark. Send the same piece as
-many times as you like.
+into place, so a write cut short can never touch your document. Formatting comes
+from a **floating palette** that appears on a selection, and from shortcuts:
+bold, italic, heading, list, quote, code, callout, image, link.
 
 ### Mark and comment
 
-Highlight what matters and take notes. The document stays wholly yours. Marks and
-comments never disturb the document's flow — they align to a badge in the right
-margin — and if the source file changes from the outside, a mark tries to
-re-anchor itself.
+Mark what matters and write a note in the margin. Your notes stay in the margin,
+out of your file. What a mark holds is not a position but **the text itself**: if
+the file changes underneath it, the mark reattaches; if it cannot, it is not
+deleted — it is unresolved. Move the document to another folder and your notes
+still find it.
 
-### AI assistance
+### Transfer between documents
 
-Let it tidy the text and spark words. The pen is still yours. The optional AI
-layer runs from the document menu and the palette, and **the output comes back in
-the language of the text you are working on** — select an English paragraph and
-you get English, a Turkish one and you get Turkish. The jobs:
+Carry what you select into another document. **Transfer** opens a full layer over
+the tabs: source on the left, target on the right. Walk the marks, send the one
+you want with **Taşı**. The text lands as a quotation and carries a single `🔗`
+citation beside it — click it and you are back at that exact place in the source
+(`document.md#heading`, `book.pdf#page=12`).
 
-- **Fluent alternative** — the same content, more fluently (numbers, names and
-  formulas are preserved).
-- **Continuation paragraph** — carries the text on in the author's own voice.
-- **Spelling & punctuation** — fixes only spelling, never swaps a word.
-- **Fact check** and **source suggestions** — read-only; they cannot enter the
-  document.
-- **Summary** — summarizes the document or a selection as bullet points.
+### PDFs live here too
 
-Multiple providers: Gemini, Claude, OpenAI, OpenRouter, NVIDIA, Groq, DeepSeek,
-local Ollama, and any OpenAI-compatible service (by entering its address). Off by
-default — with no model connected, the app is exactly its AI-free self.
+A PDF opens, is read, marked and commented on; what you select goes into your
+`.md` document. It is tidied on the way: line endings join, hyphenated words are
+put back together, paragraphs and lists are recognised from how they sit on the
+page. A two-column page is read in the right order. Nothing is ever written into
+a PDF, and no PDF is converted.
+
+### AI, if you want it
+
+Let it tidy the text or nudge a word. The pen is still yours. The optional layer
+works from the document row, the palette and the right-click menu; **the output
+comes in the language of the text you are working on**. The jobs: fluent
+alternative · continuing paragraph · spelling and punctuation · fact check ·
+source suggestion · summary · title · pull quote · translation. The last five are
+read-only and can never enter the document.
+
+**Use the subscription you already pay for.** If Claude Code, Antigravity or
+Codex is installed, MD Plus runs it directly — no second key to buy, nothing to
+pay per token. If they are not installed, they never appear in the list.
+
+The usual providers are here too: Gemini, Claude, OpenAI, OpenRouter, NVIDIA,
+Groq, DeepSeek, local **Ollama**, and any OpenAI-compatible service (by entering
+its address). Your keys are kept in the operating system's own vault, never in a
+settings file. The default is **off**: with no model connected, the app is
+exactly its AI-free self.
 
 ---
 
-## And more
+## More
 
-- **Images** — paste from the clipboard or drag them in; they are copied into an
-  `images` folder beside the document and shown inline.
-- **Formulas** — LaTeX written with `$...$`, typeset with KaTeX.
-- **PDF and printing** — the document prints as one whole; marks and comments
-  never appear in the output.
-- **Find and replace** — in-document search (`Ctrl+F`) and replace (`Ctrl+H`),
-  with case folding done correctly for Turkish.
-- **Embedded documents** — opens the contents of a `.md` link in place, read-only.
-- **Recent files**, a **table of contents**, link following and a way back.
+- **Images** — paste from the clipboard or drag them in; they are copied into the
+  document's own folder (`thesis.md` → `thesis.images/`) and shown inline. What to
+  take along when you share the document is clear from the name.
+- **Formulas** — LaTeX written as `$...$`, typeset with KaTeX.
+- **PDF and printing** — the document prints to A4; marks and comments never
+  reach the output.
+- **Find and replace** — `Ctrl+F` / `Ctrl+H`, with correct Turkish case folding.
+  The search can run inside your marks, and it works in PDFs too.
+- **Embedded document** — opens the contents of an `.md` link in place,
+  read-only.
+- **External changes** — if your file changed elsewhere, you are told; if you have
+  unsaved writing, the choice is yours.
+- **Recent documents**, **outline**, mark list, link following and the way back.
 
 ## Two languages
 
-The interface is **Turkish and English**. On launch it follows your operating
-system's language, and you can change it in Settings. The AI output, however,
-follows **the language of the text**, independent of the interface.
+The interface is **Turkish and English**. It follows your operating system at
+first launch and can be changed in Settings. AI output, independently of the
+interface, comes in **the language of the text**.
 
 ## Stack
 
 [Tauri 2](https://tauri.app/) (Rust shell) + [Vite](https://vitejs.dev/) +
-[CodeMirror 6](https://codemirror.net/) + [KaTeX](https://katex.org/) +
-[marked](https://marked.js.org/). Standalone `.exe` ~12 MB.
+[CodeMirror 6](https://codemirror.net/) + [pdf.js](https://mozilla.github.io/pdf.js/) +
+[KaTeX](https://katex.org/) + [marked](https://marked.js.org/).
+Standalone `.exe` ~19 MB.
 
 ## Development
 
@@ -98,11 +116,11 @@ npm test           # unit tests
 
 ## How it was made
 
-This project was written with **vibe coding**: the product idea, design
-decisions, requirements and direction are entirely the **repo owner's (Zafer
-Kılıç)**; **all of the code was written by AI** under their direction. The human
-decided what and how; the machine wrote the code.
+This project was written by **vibe coding**: the product idea, the design
+decisions, the requirements and the direction are entirely the **repository
+owner's (Zafer Kılıç)**; **all of the code was written by an AI** under his
+direction. The human decided what and how, the machine wrote the lines.
 
-## License
+## Licence
 
 [MIT](LICENSE) © Zafer Kılıç

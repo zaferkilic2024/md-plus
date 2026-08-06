@@ -9,6 +9,7 @@ import {
   openReplace,
   openSearch,
   searchBoxOf,
+  setSearchInert,
 } from "./search.js";
 import { askChoice, askText } from "./confirm.js";
 import { readSession, writeSession } from "./session.js";
@@ -44,11 +45,13 @@ import { printDocument, printPaper } from "./print.js";
 import { createEmptyState, sayNotMarkdown } from "./empty.js";
 import { createChrome, popover, recentRows, sayMissing, ICONS } from "./chrome.js";
 import { createWindowControls, dragRegion, wireResizeEdges } from "./window-frame.js";
-import { createDocTools } from "./doc-tools.js";
+import { createDocTools, isEmptyDoc } from "./doc-tools.js";
+import { createDocInfo, statsOf } from "./doc-info.js";
+import { open as openPath } from "@tauri-apps/plugin-shell";
 import { attachToTop } from "./to-top.js";
 import { createHome } from "./home.js";
 import brandIcon from "../src-tauri/icons/128x128.png";
-import { forget, remember, renamePath, rows } from "./recents.js";
+import { clearExcept, forget, remember, renamePath, rows } from "./recents.js";
 import { effectiveLang, loadSettings } from "./settings.js";
 import { setLang, t } from "./i18n.js";
 import { relocalizePalettes, togglePalette } from "./palette.js";
@@ -187,6 +190,7 @@ const chromeDeps = {
     const tab = transfer.open ? transfer.source : activeTab();
     if (tab && path) followLink(tab, path, at);
   },
+  onDocInfo: (anchor) => showDocInfo(anchor),
   onCommand: (command) => {
     // Home is the app's, not the document's: it opens with nothing open, which
     // is the case it is most needed in.
@@ -277,6 +281,18 @@ function applyLanguage() {
 
 window.addEventListener("dil-degisti", applyLanguage);
 
+// A setting changed. The document row asks the settings a question at BUILD
+// time — "does this job have a model?" — and then keeps the answer, so binding
+// or removing a model left Özet · Başlık · Spot exactly as they were drawn
+// (Zafer, 6 Aug: "menüde pasifleştiler ama orada diri duruyorlar"). The menus
+// looked right only because a popover is built fresh every time it opens.
+//
+// settings.js has always announced this; nothing was listening.
+window.addEventListener("ayar-degisti", () => docTools.refresh());
+
+/** The app's own page, while it is up. Declared here because renderTabs asks. */
+let homeLayer = null;
+
 function renderTabs() {
   tabsEl.replaceChildren();
 
@@ -307,6 +323,16 @@ function renderTabs() {
   seam.className = "brand-seam";
   mark.append(brand, seam, chrome.about);
   tabsEl.append(mark);
+
+  // Hakkında is a layer of the APP, not of a document (Zafer, 6 Ağu). While it
+  // is up the row carries the app's own corner and the window's controls and
+  // nothing else: no tabs to switch to under a page you are reading, and no
+  // bridge belonging to a screen you cannot see. The mark stays because it is
+  // the way back out — the same button you came in by.
+  if (homeLayer) {
+    tabsEl.append(dragRegion(), chrome.appTools, windowControls);
+    return;
+  }
 
   // Aktarma has no tabs (KR-41: one source, one target, nothing remembered), so
   // its bridge takes their place — same row, same seam with the paper below.
@@ -399,6 +425,13 @@ function renderTabs() {
     const title = document.createElement("span");
     title.className = "name";
     title.textContent = tab.title;
+    // The FULL path, on the tab itself (Zafer, 6 Ağu). Until now the app said
+    // where a document lived in exactly one place — the last-opened list — and
+    // that list is history: clear it, or open an eleventh document, and the path
+    // of the thing in front of you was nowhere at all. The tab is where the
+    // question is asked, so it is where the answer belongs. An unsaved draft
+    // says it has no path yet rather than showing a bare name.
+    el.title = tab.path || t("tab.unsavedPath");
     el.append(title);
 
     // A dirty tab shows its dot, but it must still be closable — the dot used to
@@ -499,6 +532,9 @@ function renderTabs() {
   const searchBox = front?.view
     ? searchBoxOf(front.view, front.marks)
     : (front?.search?.dom ?? null);
+  // Nothing to look through in an empty document (Zafer, 6 Aug) — the box goes
+  // pale in place, wearing the same face as Aktarma's empty target half.
+  if (front?.view) setSearchInert(front.view, isEmptyDoc(front));
   const gap = document.createElement("div");
   gap.className = "doc-gap";
   docTools.refresh();
@@ -670,9 +706,9 @@ function emptyRecents() {
     },
   });
 
-  // The whole list can be swept away (Zafer, 18 Tem). Quiet, at the foot of the
-  // rows: a faint word, not a red button. Clearing empties the history, so the
-  // empty screen re-renders back to its first-run face — the four cards return.
+  // The list can be swept away (Zafer, 18 Tem). Quiet, at the foot of the rows:
+  // a faint word, not a red button. It clears the HISTORY — documents open
+  // right now keep their rows (6 Ağu; see clearRecents).
   const clear = document.createElement("button");
   clear.className = "recents-clear";
   clear.textContent = t("recents.clear");
@@ -681,9 +717,20 @@ function emptyRecents() {
   return list;
 }
 
-/** Empties the last-opened history everywhere it shows, and persists it. */
+/**
+ * Empties the last-opened history everywhere it shows, and persists it.
+ *
+ * The documents OPEN right now keep their rows (Zafer, 6 Ağu): the list says
+ * where you have been, and what is in front of you is not the past. Without
+ * this the strip and the list contradicted each other — five tabs, no history —
+ * and a restart did not settle it, because restoring a session does not write
+ * to this list (KR-59).
+ */
 function clearRecents() {
-  recents = [];
+  recents = clearExcept(
+    recents,
+    tabs.map((tab) => tab.path).filter(Boolean),
+  );
   saveSession();
   renderTabs(); // the chevron's appendix goes with the history
   renderBody(); // the empty screen, if up, drops the shelf for the four cards
@@ -840,6 +887,11 @@ function createTab({ path, text }) {
       // or deleted), so it is refreshed every change, not only on the clean→dirty
       // flip below.
       chrome.updateContentsTool();
+      // Same reason, the other side of the row: the first character typed into
+      // an empty document turns printing, PDF, the AI jobs and Aktarma back on
+      // (Zafer, 6 Aug). Flags only — the row is not rebuilt on a keystroke.
+      docTools.updateEnabled();
+      if (tab.view) setSearchInert(tab.view, isEmptyDoc(tab));
       // Only the strip and the status line may change on a keystroke — never
       // the editor itself.
       if (wasClean) renderTabs();
@@ -925,6 +977,10 @@ async function createPdfTab(path) {
     // workshop needs it to find this PDF's notes again after it is moved, and
     // reading a 30 MB file a second time just to ask would be a poor trade.
     tab.signature = signatureOf(data);
+    // Same reason, same moment: a PDF has no text for us to weigh, so its size
+    // is the only honest answer to "how big is this?" — and the bytes are in
+    // hand exactly once (Zafer, 6 Ağu: the info card was saying 0).
+    tab.bytes = data.length ?? data.byteLength ?? 0;
 
     tab.pdf = await createPdfSurface({
       parent: host,
@@ -1752,7 +1808,39 @@ function searchTarget() {
  * document — it cannot be marked, saved or transferred — and a tab that could do
  * none of those things would be a tab that lies.
  */
-let homeLayer = null;
+/**
+ * ⋯ → Belge bilgisi. The card lends the menu's paper; the numbers come from
+ * here, because only main.js can see both the text and the marks.
+ *
+ * A PDF answers with an empty text on purpose: we hold its pages, not its words
+ * (KR-68), and `statsOf` drops the lines it cannot honestly fill.
+ */
+async function showDocInfo(anchor) {
+  const tab = activeTab();
+  if (!tab) return;
+
+  const stats = statsOf({
+    text: tab.view ? tab.view.state.doc.toString() : "",
+    marks: tab.marks?.listing() ?? [],
+    isPdf: isPdfTab(tab),
+    // Measured when the PDF was opened; a document weighs its own text.
+    bytes: isPdfTab(tab) ? (tab.bytes ?? 0) : null,
+  });
+
+  const card = createDocInfo({
+    path: tab.path ?? null,
+    stats,
+    // The folder, not the file: opening the file would just open this app again
+    // (or worse, whatever else claims .md). `openPath` is the same door the
+    // about page's links go through — nothing new is asked of the OS.
+    // Never swallow this: the first version caught and dropped the error, so a
+    // refused path looked exactly like a working one (Zafer: "klasör açmak
+    // çalışmıyor" — and the reason was invisible).
+    onOpenFolder: () =>
+      openPath(folderOf(tab.path)).catch((error) => console.warn("klasör açılamadı:", error)),
+  });
+  popover(anchor, [{ node: card }]);
+}
 
 function toggleHome() {
   if (homeLayer) {
@@ -1761,11 +1849,15 @@ function toggleHome() {
   }
   homeLayer = createHome({ onClose: closeHome });
   document.body.append(homeLayer);
+  // The row has to be redrawn, not just covered: see renderTabs.
+  renderTabs();
 }
 
 function closeHome() {
-  homeLayer?.remove();
+  if (!homeLayer) return;
+  homeLayer.remove();
   homeLayer = null;
+  renderTabs();
 }
 
 /** UC-11. Inside Aktarma it is the target — the document being written. */

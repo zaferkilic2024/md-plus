@@ -389,6 +389,31 @@ class Search {
     }
   }
 
+  /**
+   * There is nothing in this document to look through (Zafer, 6 Aug).
+   *
+   * The same face Aktarma's empty target half wears (`inertSearchBox`): the box
+   * stays exactly where it is and goes pale, because a box that vanishes takes
+   * the row's balance with it (KR-64). Any search in progress is dropped — the
+   * text it was pointing into is gone.
+   */
+  setInert(on) {
+    if (this.inert === on) return;
+    this.inert = on;
+    this.dom.classList.toggle("inert", on);
+    this.field.disabled = on;
+    if (!on) return;
+
+    // Deleting the last character is what turns this on, and that arrives from
+    // inside CodeMirror's own update (main.js/onChange) — where dispatching is
+    // forbidden and would take the plugin down with it (B-31). `clear` both
+    // dispatches and can take focus, so it waits for the update to finish, and
+    // goes quiet: the writer is in the document, not in this box.
+    queueMicrotask(() => {
+      if (this.inert) this.clear({ quiet: true });
+    });
+  }
+
   /** Aktarma's source is read-only, and a read-only surface is not asked to be
       rewritten (KR-22). The row simply is not there. */
   get writable() {
@@ -403,6 +428,9 @@ class Search {
   }
 
   open({ swap = false } = {}) {
+    // Ctrl+F into an empty document: the box is pale and there is nothing to
+    // find, so the keystroke lands nowhere rather than in a dead field.
+    if (this.inert) return;
     this.refreshWritable();
 
     // Whatever is selected is what you are almost certainly looking for.
@@ -762,6 +790,12 @@ export function searchBoxOf(view, marks = null) {
   if (!search) return null;
   search.marks = marks;
   return search.dom;
+}
+
+/** Told from outside, because "is this document empty?" is the document row's
+    question and the box has no view onto anything but its own text. */
+export function setSearchInert(view, on) {
+  searchers.get(view)?.setInert(on);
 }
 
 /**

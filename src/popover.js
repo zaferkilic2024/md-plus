@@ -76,6 +76,14 @@ export function popover(anchor, items) {
       menu.append(document.createElement("hr"));
       continue;
     }
+    // Something that is not a row of verbs at all — a card the caller built
+    // (Belge bilgisi). The menu lends its paper, its shadow and its way of
+    // closing; what is inside is none of its business. Cheaper and truer than
+    // teaching a second floating box the same three things.
+    if (item.node) {
+      menu.append(item.node);
+      continue;
+    }
     // A caption over a group of rows — what the rows below are answers to
     // ("Çevir", then the two directions). Not clickable, so not a button.
     if (item.heading) {
@@ -89,8 +97,14 @@ export function popover(anchor, items) {
     const entry = document.createElement("button");
     // An <i>, not a <span>: the rule below that ellipsises a long file name is
     // `.popover button > span`, and it would squeeze the glyph to nothing.
+    // `ai: true` hangs the spark off the glyph's corner — the entry calls a
+    // model, and that is worth knowing before pressing, not after (Zafer, 6 Aug).
     entry.innerHTML =
-      (item.icon ? `<i class="popover-icon">${icon(GLYPH[item.icon])}</i>` : "") +
+      (item.icon
+        ? `<i class="popover-icon${item.ai ? " has-ai" : ""}">${icon(GLYPH[item.icon])}` +
+          (item.ai ? `<span class="ai-badge">${icon(GLYPH.ai, 8)}</span>` : "") +
+          `</i>`
+        : "") +
       `<span class="popover-label">${item.label}</span>` +
       (item.dirty ? `<i class="popover-dot" title="${t("tab.unsaved")}"></i>` : "") +
       (item.key ? `<kbd>${item.key}</kbd>` : "");

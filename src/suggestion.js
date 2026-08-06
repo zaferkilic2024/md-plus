@@ -32,7 +32,9 @@ const icon = (paths) =>
 
 const TICK = '<path d="M20 6L9 17l-5-5"/>';
 const CROSS = '<path d="M18 6L6 18M6 6l12 12"/>';
-const COPY = '<rect x="9" y="9" width="11" height="11" rx="2"/><path d="M5 15V5a2 2 0 0 1 2-2h10"/>';
+// From the dictionary, not a copy of it: the right-click menu draws the same
+// act, and two hand-kept copies of one drawing is exactly how they drift.
+const COPY = GLYPH.copy;
 
 /** A quiet icon button that copies `text`, flashing a tick when it lands. */
 function copyButton(text) {

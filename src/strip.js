@@ -67,19 +67,36 @@ export const GLYPH = {
   // küre = dil, kalp = açık kaynak. Başka hiçbir yerde kullanılmazlar.
   globe:
     '<circle cx="12" cy="12" r="9"/><path d="M3 12h18"/><path d="M12 3a15 15 0 0 1 0 18a15 15 0 0 1 0-18"/>',
+  // Copy. Lived in suggestion.js as a local constant until the right-click menu
+  // wanted the same act (6 Aug) — the second caller is what makes a drawing a
+  // word, and a word belongs in the one dictionary.
+  copy: '<rect x="9" y="9" width="11" height="11" rx="2"/><path d="M5 15V5a2 2 0 0 1 2-2h10"/>',
+  // Çeviri: a letter and a character, the way every translator is drawn. NOT
+  // the globe — that one already means "what this app speaks" on the about
+  // screen, and a glyph cannot carry two meanings. Two Latin languages would be
+  // "A → A", which says nothing, so the pair is what does the work here rather
+  // than an arrow between them.
+  translate:
+    '<path d="M3.2 15L6.4 6.4 9.6 15M4.4 12.6h4"/><path d="M13.4 8.4h7.4M17.1 5.6v2.8M20.4 18.4c-2.4-1.4-4-3.6-4.7-6.4M14.2 18.4c2.4-1.4 4-3.6 4.7-6.4"/>',
   heart:
     '<path d="M12 20s-7-4.6-7-9.3A3.7 3.7 0 0 1 12 8a3.7 3.7 0 0 1 7 2.7C19 15.4 12 20 12 20z"/>',
   license: '<path d="M6 3.5h8l4 4v7"/><path d="M6 3.5v17h6"/><circle cx="17" cy="17.5" r="3"/><path d="M15.4 20l-.4 3 2-1 2 1-.4-3"/>',
   // The app's one warning (KR-53). Nowhere else — if a second thing ever wants
   // this triangle, the answer is that there is only one warning.
   warn: '<path d="M12 4.2L2.6 20h18.8z"/><path d="M12 10v4.2"/><path d="M12 17.4h.01"/>',
-  // Yapay zekâ: an open-centred burst — four rays and four short diagonals.
-  // Deliberately NOT a robot (Zafer, 18 Tem: "android olmasın"), and not a
-  // four-point star either: with the echo star it was muddy at 15px ("boğuk"),
-  // and without it, a lone four-point star IS the Gemini logo. The burst says
-  // "spark" without wearing anyone's badge. One drawing, one meaning: the only
-  // glyph that says "the model speaks here".
-  ai: '<path d="M12 3.5V9M12 15v5.5M3.5 12H9M15 12h5.5"/><path d="M6.3 6.3l1.9 1.9M15.8 15.8l1.9 1.9M17.7 6.3l-1.9 1.9M8.2 15.8l-1.9 1.9"/>',
+  // Yapay zekâ: the filled four-point spark. Still NOT a robot (Zafer, 18 Tem:
+  // "android olmasın").
+  //
+  // The open-centred burst that stood here was chosen to avoid looking like the
+  // Gemini logo; Zafer took that back on 6 Aug ("şu gemini yz ikonu daha güzel
+  // olur") once the glyph had to work at 11px as a corner mark, where eight thin
+  // rays are mud. Filled and solid, it reads at any size — the reason the shape
+  // is everywhere in the first place.
+  //
+  // The one filled glyph in the set, and the only one that says "the model
+  // speaks here": palette, ⋯ menu and the corner marks all wear this one
+  // drawing.
+  ai: '<path fill="currentColor" stroke="none" d="M12 2.2c.6 5.4 4.4 9.2 9.8 9.8-5.4.6-9.2 4.4-9.8 9.8-.6-5.4-4.4-9.2-9.8-9.8 5.4-.6 9.2-4.4 9.8-9.8z"/>',
 
   // ---- the ⋯ menu (17 Tem) ----
   //

@@ -46,7 +46,17 @@ jobs:
         with:
           tagName: ${{ github.ref_name }}
           releaseName: "MD Plus ${{ github.ref_name }}"
-          releaseBody: "MSI kurulumunu aşağıdaki Assets bölümünden indirin. winget: `winget install ZaferKilic.MDPlus`"
+          # Sürüm notu her sürümde ELLE güncellenir. Ayrı bir CHANGELOG yok:
+          # aynı şeyin iki yerde yaşaması, birinin eskimesi demektir.
+          releaseBody: |
+            - **PDF artık kaynak:** açılır, okunur, işaretlenir; seçtiğiniz metin toparlanarak `.md` belgenize geçer.
+            - **Zaten ödediğiniz aboneliği kullanın:** Claude Code, Antigravity ve Codex kuruluysa doğrudan çalışır.
+            - **Anahtarlarınız işletim sisteminin kasasında** — ayar dosyasında düz metin durmuyor.
+            - **İşaret ve yorumlarınız artık uygulamanın klasöründe** (`~/.mdplus`), belgelerinizin yanında değil. Belgeniz taşınsa da notları onu bulur. _Önceki sürümlerde konmuş işaretler yeni sürümde görünmez; dosyaları belgelerinizin yanındaki `.mdplus` klasörlerinde duruyor, silinmiyor._
+            - Görseller belge başına klasöre kopyalanır (`tez.md` → `tez.images/`).
+            - Belge bilgisi kartı, sekmede tam dosya yolu, yeniden düzenlenmiş belge satırı ve sadeleşen yapay zekâ ayarları.
+
+            MSI kurulumunu aşağıdaki Assets bölümünden indirin. winget: `winget install ZaferKilic.MDPlus`
           releaseDraft: false
           prerelease: false
 

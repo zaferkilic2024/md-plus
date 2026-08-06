@@ -1,5 +1,11 @@
-import { cpSync } from "node:fs";
+import { cpSync, readFileSync } from "node:fs";
 import { defineConfig } from "vite";
+
+// The version, from the one file that already has to carry it. Baked in at
+// build time rather than asked of Tauri at runtime: the number is the same for
+// the whole life of the binary, and asking would mean a permission and an
+// await for something that cannot change.
+const { version } = JSON.parse(readFileSync("package.json", "utf8"));
 
 // pdf.js'in 14 standart PDF yazı tipi kopyası (Helvetica, Times, Courier,
 // Symbol…). Bu tipler dosyaya GÖMÜLMEYEBİLİR — PDF standardı "her okuyucuda
@@ -17,6 +23,7 @@ cpSync("node_modules/pdfjs-dist/standard_fonts", "public/standard_fonts", {
 
 export default defineConfig({
   clearScreen: false,
+  define: { __APP_VERSION__: JSON.stringify(version) },
   server: { port: 1420, strictPort: true },
   // Tauri kabuğu build çıktısını buradan okur.
   build: { outDir: "dist", target: "chrome110", emptyOutDir: true },

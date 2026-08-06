@@ -15,7 +15,6 @@ import { openSettings } from "./settings-panel.js";
 import { goster } from "./shortcuts.js";
 import { GLYPH } from "./strip.js";
 import { fileNameOf } from "./paths.js";
-import { documentJobs, jobName, jobShortcut, provider } from "./ai.js";
 import { t } from "./i18n.js";
 import { icon, popover } from "./popover.js";
 
@@ -157,6 +156,9 @@ export function createChrome({
   activeTab,
   onBack,
   onFollowTarget,
+  // The info card needs the disk (a folder to open) and the workshop (the marks
+  // to count), neither of which the strip has any business knowing about.
+  onDocInfo = () => {},
   withBack = true,
 }) {
   const left = document.createElement("div");
@@ -387,47 +389,49 @@ export function createChrome({
   // the ⋯ menu, which is entirely about the document you are standing in.
   const settings = tool("settings", t("menu.settings"), () => openSettings(settings));
 
-  // ⋯ acts on this document, and only on this document.
+  // ⋯ is the document's FILE side, and only that (Zafer, 6 Ağu).
+  //
+  // The row's icons act on the text — print it, summarise it, carry a passage
+  // out of it — and every one of them used to be repeated here as a word. That
+  // made the menu a copy of the row, which is the "one verb, one place" rule
+  // broken in the loudest possible way. What is left is what no icon can say
+  // and the row has no business holding: save, save as, rename, close. The
+  // drawer this menu will fill up with is the same kind of thing — export /
+  // import a package, show the file in its folder, reload it from disk.
+  //
+  // It stays on a PDF even when it has a single entry (Zafer): a control that
+  // is somewhere on one kind of document and nowhere on another is a control
+  // the reader has to re-learn. The tab's own ✕ closes it too — that is a
+  // shortcut, not a reason for the menu to disappear.
   const more = tool("more", t("menu.docMenu"), () => {
     const tab = activeTab();
 
-    // A PDF is read, not written (KR-68), so almost nothing in the menu below
-    // means anything for it. It gets the entries that do — which today is one.
-    // Not a menu of greyed-out rows: the app is exactly as large as what it can
-    // do here (KR-42's rule, applied to a document kind instead of to a model).
+    // A PDF is read, never written (KR-68): it cannot be saved, saved as, or
+    // renamed by us. Aktarma left this menu with everything else — it is on the
+    // row, where a PDF gets it too.
+    // The file's own facts, at the head of the menu about the file: where it
+    // is (copyable — a tooltip can be read but not taken) and what the reader
+    // has left in it. It opens as a card rather than a row, because none of it
+    // is a verb.
+    //
+    // It wears GLYPH.about — the circled `i`. That is not a second meaning
+    // loaded onto one drawing: the glyph means "information about this", and
+    // what "this" is comes from where it sits. Beside the brand it is the app;
+    // in the document's menu it is the document.
+    const info = { icon: "about", label: t("menu.docInfo"), run: () => onDocInfo(more), disabled: !tab };
+
     if (tab?.kind === "pdf") {
       popover(more, [
-        // Aktarma is open to a PDF as of 28 Tem: it goes in on the left, to be
-        // read, while a document is written on the right. It cannot be a target
-        // — nothing is ever written into a PDF (KR-68).
-        {
-          icon: "transfer",
-          label: t("menu.transfer"),
-          key: "Ctrl+Shift+A",
-          run: () => onCommand("transfer"),
-        },
+        info,
         "-",
         { icon: "close", label: t("menu.closeTab"), key: "Ctrl+W", run: () => onCommand("close") },
       ]);
       return;
     }
 
-    // The document-wide AI jobs. Note what this is NOT: a greyed-out entry. With
-    // no model routed to it, "Özet" is not in the menu at all — the app is
-    // exactly v1 when the AI is off (KR-42), here as everywhere.
-    const yzIsleri = documentJobs()
-      .filter((job) => provider(job))
-      .map((job) => ({
-        // Keyed by job id, so a job without a drawing of its own simply has no
-        // icon rather than borrowing someone else's. Today: summarize.
-        icon: GLYPH[job] ? job : undefined,
-        label: jobName(job),
-        key: jobShortcut(job) ? goster(jobShortcut(job)) : undefined,
-        run: () => onCommand(job),
-        disabled: !tab,
-      }));
-
     popover(more, [
+      info,
+      "-",
       { icon: "save", label: t("menu.save"), key: "Ctrl+S", run: () => onCommand("save"), disabled: !tab },
       {
         icon: "saveAs",
@@ -437,25 +441,6 @@ export function createChrome({
         disabled: !tab,
       },
       { icon: "rename", label: t("menu.rename"), run: () => onCommand("rename"), disabled: !tab },
-      "-",
-      // Two different acts, so two entries. "PDF'e bas" was the wrong word for
-      // both of them: nothing is pressed onto anything — a file is written to
-      // disk. Printing is the one that puts ink on paper.
-      { icon: "printer", label: t("menu.print"), key: "Ctrl+P", run: () => onCommand("printPaper"), disabled: !tab },
-      { icon: "sheet", label: t("menu.savePdf"), key: "Ctrl+Shift+P", run: () => onCommand("print"), disabled: !tab },
-      // It used to be off with no marks (B-17): back then the screen could only
-      // travel and send, so it would have opened onto its own pointlessness.
-      // KR-71 gave it the marking palette back, and an unmarked document is now
-      // the ordinary reason to go in — you mark while reading the two side by
-      // side. A document is all it needs (28 Tem, Zafer).
-      {
-        icon: "transfer",
-        label: t("menu.transfer"),
-        key: "Ctrl+Shift+A",
-        run: () => onCommand("transfer"),
-        disabled: !tab,
-      },
-      ...(yzIsleri.length ? ["-", ...yzIsleri] : []),
       "-",
       // The same ✕ that closes a card, dismisses a suggestion and drops a tab
       // from the stack. One gesture, one glyph.

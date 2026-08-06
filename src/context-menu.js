@@ -52,6 +52,7 @@ export function openContextMenu({ event, text, onJob }) {
   const has = Boolean(text.trim());
   const items = [
     {
+      icon: "copy",
       label: t("menu.copy"),
       key: goster("Ctrl-c"),
       disabled: !has,
@@ -59,9 +60,12 @@ export function openContextMenu({ event, text, onJob }) {
     },
   ];
 
-  // KR-42 holds here as it does everywhere: with no model bound, translation is
-  // not offered at all — no dead row, no invitation.
-  if (provider("translate")) {
+  // With no model bound the directions go pale rather than away (Zafer, 6 Aug),
+  // the same as the jobs on the row and in ⋯. The pair still comes from
+  // Settings, so the menu says which way it would translate once there is a
+  // model to ask.
+  {
+    const canTranslate = Boolean(provider("translate"));
     const { from, to } = translationPair();
     items.push("-", { heading: t("ai.job.translate"), key: goster(jobShortcut("translate")) });
     // Both ways of the configured pair, so changing direction is a click and not
@@ -69,8 +73,12 @@ export function openContextMenu({ event, text, onJob }) {
     const ways = from === to ? [[from, to]] : [[from, to], [to, from]];
     for (const [a, b] of ways) {
       items.push({
+        // Drawn and marked like the other AI jobs (Zafer, 6 Aug): the row calls
+        // a model, and the badge is how the app says so everywhere it happens.
+        icon: "translate",
+        ai: true,
         label: `${languageName(a)} → ${languageName(b)}`,
-        disabled: !has,
+        disabled: !has || !canTranslate,
         run: () => onJob("translate", { from: a, to: b }),
       });
     }
