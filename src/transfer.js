@@ -493,13 +493,23 @@ export class Transfer {
    *
    * The link is relative to the TARGET, because the target is the document that
    * will hold it — an absolute path breaks the moment the folder moves (the
-   * portability law). Two things have no address and get no link: a source never
-   * saved to disk, and a target not saved yet, which has no folder to be
-   * relative to. The quote still lands; only the citation stays behind.
+   * portability law).
+   *
+   * One thing has no address and gets no link: a source never saved to disk. The
+   * quote still lands; only the citation stays behind. That is consistent rather
+   * than unfortunate — an unsaved document's marks are not written either
+   * (`marks.write` returns without a path).
+   *
+   * The target was checked here too, until it was measured (8 Ağu): all three
+   * ways of naming one guarantee a path. The open-tabs list is already filtered
+   * by `tab.path` (main.js), "pick from disk" came from disk, and "new empty
+   * document" asks for a name immediately (`createTarget` → `saveTab` → save
+   * dialog) and closes the tab again if that is cancelled. A test for a state
+   * that cannot occur reads as a state that can.
    */
   citeFor(at) {
     const path = this.source.path;
-    if (!path || !this.target.path) return {};
+    if (!path) return {};
     // A PDF says the page. A document says the headings it sits under — the same
     // question, answered in the terms each one has (see citation.js).
     const where = {
