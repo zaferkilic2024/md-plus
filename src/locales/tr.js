@@ -36,6 +36,14 @@ export const tr = {
   "tab.recentTitle": "Son açılan belgeler",
   "tab.allTitle": "Tüm belgeler",
 
+  // ---- sekme grupları (main.js) ----
+  "group.new": "Yeni grup",
+  "group.leave": "Gruptan çıkar",
+  "group.addTo": "{name} grubuna ekle",
+  "group.rename": "Grubu adlandır",
+  "group.disband": "Grubu dağıt",
+  "group.closeAll": "Gruptaki belgeleri kapat",
+
   // ---- durum çubuğu (main.js) ----
   "status.wordCount": "{n} kelime",
   "status.saving": "kaydediliyor…",

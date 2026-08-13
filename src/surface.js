@@ -567,6 +567,23 @@ export function topLineText(view) {
 }
 
 /**
+ * Back to the very top of a document (B-35).
+ *
+ * Through CodeMirror's own door, and instantly. `scrollDOM.scrollTo({behavior:
+ * "smooth"})` was the old way and it broke on exactly the documents the button
+ * exists for: CodeMirror scrolls a VIRTUAL document, so the lines the animation
+ * flies past are drawn on the way and their estimated heights are replaced with
+ * real ones. The distance left to travel moves under the animation — it stutters
+ * where the correction lands, and stops short of the top when the last one comes
+ * after the animation has ended. The same three attempts at gliding failed in
+ * chrome.js (see the Contents jump); correct beats pretty.
+ */
+export function scrollToTop(view) {
+  if (!view) return;
+  view.dispatch({ effects: EditorView.scrollIntoView(0, { y: "start" }) });
+}
+
+/**
  * Scrolls back to a line matching `anchor`. Silently does nothing when the text
  * is gone — the document just opens at the top (UC-04/A1, UC-04-K2).
  */

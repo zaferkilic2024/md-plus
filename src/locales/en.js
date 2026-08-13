@@ -35,6 +35,14 @@ export const en = {
   "tab.recentTitle": "Recently opened",
   "tab.allTitle": "All documents",
 
+  // ---- tab groups (main.js) ----
+  "group.new": "New group",
+  "group.leave": "Remove from group",
+  "group.addTo": "Add to {name}",
+  "group.rename": "Rename group",
+  "group.disband": "Ungroup",
+  "group.closeAll": "Close documents in group",
+
   // ---- status bar (main.js) ----
   "status.wordCount": "{n} words",
   "status.saving": "saving…",

@@ -210,15 +210,20 @@ export async function adoptDraftImages(documentPath) {
   const source = `${await draftFolder()}/${DRAFT_IMAGE_DIR}`;
   if (!(await exists(source))) return null;
 
+  // Counted BEFORE the destination is made, and this order is the whole point.
+  // The drafts folder outlives the draft that made it — pictures leave it, the
+  // folder stays — so `exists` above says yes on every later save as well. With
+  // the destination created first, saving a brand new document put an empty
+  // `belge.images/` beside a document that has no picture at all (Zafer,
+  // 13 Ağu). The folder is only ever born for a document that has one.
+  const files = (await readDir(source)).filter((entry) => entry.isFile);
+  if (!files.length) return null;
+
   const { folder, sep } = await imageFolder(documentPath);
-  let moved = 0;
-  for (const entry of await readDir(source)) {
-    if (!entry.isFile) continue;
+  for (const entry of files) {
     await copyFile(`${source}/${entry.name}`, `${folder}${sep}${entry.name}`);
     await remove(`${source}/${entry.name}`);
-    moved++;
   }
-  if (!moved) return null;
 
   // The links in the draft still say `images/…`, which was true while the
   // document had no name. Now it has one, and they have to be told: the folder

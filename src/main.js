@@ -1,8 +1,23 @@
 import { open, save } from "@tauri-apps/plugin-dialog";
 import { invoke } from "@tauri-apps/api/core";
-import { createSurface, scrollToAnchor, suggestion, topLineText } from "./surface.js";
+import { listen } from "@tauri-apps/api/event";
+import {
+  createSurface,
+  scrollToAnchor,
+  scrollToTop,
+  suggestion,
+  topLineText,
+} from "./surface.js";
 import { documentJobs, jobOptions, provider, refreshCliAvailability } from "./ai.js";
 import { MarkStore } from "./marks.js";
+import {
+  gather,
+  liveGroups,
+  nameFromTab,
+  runsOf,
+  slotAfter,
+  slotForLeaving,
+} from "./tab-groups.js";
 import {
   createPdfSearch,
   inertSearchBox,
@@ -44,6 +59,7 @@ import { Transfer } from "./transfer.js";
 import { printDocument, printPaper } from "./print.js";
 import { createEmptyState, sayNotMarkdown } from "./empty.js";
 import { createChrome, popover, recentRows, sayMissing, ICONS } from "./chrome.js";
+import { pointAnchor } from "./popover.js";
 import { createWindowControls, dragRegion, wireResizeEdges } from "./window-frame.js";
 import { createDocTools, isEmptyDoc } from "./doc-tools.js";
 import { createDocInfo, statsOf } from "./doc-info.js";
@@ -120,6 +136,22 @@ const tabs = [];
 let activeIndex = -1;
 let nextTabId = 1;
 
+// The stacks the reader made: tabs of one subject, under one name, foldable
+// (13 Ağu 2026). A group is a name and a state, nothing more — which tabs are
+// in it is written on the tabs (`tab.groupId`), so a tab always knows where it
+// belongs and a group never holds a stale list. The rules that keep a group's
+// tabs side by side are in tab-groups.js.
+/** @type {{ id: string, name: string, lastTabId?: number, lastPath?: string }[]} */
+let groups = [];
+let nextGroupId = 1;
+
+const groupOf = (tab) => groups.find((group) => group.id === tab?.groupId) ?? null;
+
+/** Drops the groups nobody is in any more: a group is its tabs. */
+function pruneGroups() {
+  groups = liveGroups(tabs, groups);
+}
+
 // The last ten documents opened (KR-58). Full paths, newest first; the rules
 // that move them live in recents.js, the disk in session.js.
 /** @type {string[]} */
@@ -139,20 +171,195 @@ const isPdfTab = (tab) => tab?.kind === "pdf";
 /**
  * Moves a tab to its final position and keeps the same document active.
  *
- * `to` is where the tab now STANDS (the DOM already reflowed during the drag,
- * B-16), counted after removal — not a gap index measured beforehand.
+ * `to` is counted in the row the tab has already left — the index its new
+ * neighbour holds once it is out.
  *
  * activeIndex is a position, and positions shift when the array is spliced — so
  * we follow the active TAB, not its index: grab the object, move things, then
- * ask where that object landed. The reordering is saved like any other session
+ * ask where that object landed. Reordering is saved like any other session
  * change (UC-02), so the order the writer arranged comes back on restart.
  */
-function reorderTabs(from, to) {
-  if (to === from) return; // the drag went out and came home; the DOM matches
+function moveTab(from, to) {
+  if (to === from) return;
   const stayActive = tabs[activeIndex];
   const [moved] = tabs.splice(from, 1);
   tabs.splice(to, 0, moved);
   activeIndex = Math.max(0, tabs.indexOf(stayActive));
+}
+
+/**
+ * Puts one tab into a group and stands it next to the others.
+ *
+ * `into` is a group that already exists (dropped onto a stack) or null — in
+ * which case the target tab founds one, named after itself, and the two of them
+ * are its first members. Founding it here rather than from a menu is the whole
+ * gesture: a pile is made by putting one thing on top of another.
+ */
+function joinGroup(from, targetIndex, into = null) {
+  const moved = tabs[from];
+  const target = tabs[targetIndex];
+  if (!moved || !target || moved === target) return;
+
+  let group = into;
+  if (!group) {
+    group = groupOf(target);
+    if (!group) {
+      group = { id: `g${nextGroupId++}`, name: nameFromTab(target) };
+      groups.push(group);
+      target.groupId = group.id;
+    }
+  }
+  moved.groupId = group.id;
+  group.lastTabId = moved.id; // what was just put in is what the stack shows
+  moveTab(from, slotAfter(from, targetIndex));
+  pruneGroups(); // it may have been the last tab of some other stack
+  render();
+  saveSession();
+}
+
+/** Takes a tab out of its stack, leaving the stack whole behind it. */
+function leaveGroup(index) {
+  const tab = tabs[index];
+  if (!tab?.groupId) return;
+  moveTab(index, slotForLeaving(tabs, index));
+  tab.groupId = null;
+  pruneGroups();
+  render();
+  saveSession();
+}
+
+/**
+ * Starts a stack from a single tab, named after it — the way in for the reader
+ * who never finds the drag, and the way to make the pile before the second
+ * document is even open.
+ */
+function startGroup(index) {
+  const tab = tabs[index];
+  if (!tab || tab.groupId) return;
+  const group = { id: `g${nextGroupId++}`, name: nameFromTab(tab) };
+  groups.push(group);
+  tab.groupId = group.id;
+  render();
+  saveSession();
+}
+
+/**
+ * Renames a stack in place: the chip becomes the field, so the name is edited
+ * where it is read. No dialog — a stack's name is one word, and asking for it
+ * in a window in the middle of the screen would be heavier than the thing named.
+ */
+function renameGroup(chip, group) {
+  const field = document.createElement("input");
+  field.className = "tab-group-field";
+  field.value = group.name;
+  chip.replaceChildren(field);
+  field.focus();
+  field.select();
+
+  let settled = false;
+  const settle = (keep) => {
+    if (settled) return;
+    settled = true;
+    const name = field.value.trim();
+    if (keep && name) group.name = name;
+    render();
+    if (keep) saveSession();
+  };
+  // The chip below folds the stack when clicked, and the app's shortcuts listen
+  // on the window: neither of them may hear what is being typed into a name.
+  field.onmousedown = (event) => event.stopPropagation();
+  field.onclick = (event) => event.stopPropagation();
+  field.onkeydown = (event) => {
+    event.stopPropagation();
+    if (event.key === "Enter") settle(true);
+    else if (event.key === "Escape") settle(false);
+  };
+  field.onblur = () => settle(true);
+}
+
+/** Closes every document in the stack — with each tab's own unsaved question. */
+async function closeGroup(group) {
+  // From the end: closeTab takes an index, and every close shifts the ones after
+  // it down by one.
+  for (let index = tabs.length - 1; index >= 0; index--) {
+    if (tabs[index]?.groupId === group.id) await closeTab(index);
+  }
+}
+
+/**
+ * Takes the row's order as it now stands and makes the tabs match it.
+ *
+ * Asked of the DOM rather than counted, because the row and the array are not
+ * the same length: a stack is ONE element standing for several tabs. Every child
+ * of the strip says what it stands for — a tab its index, a stack its id — so
+ * the new order is read off the row itself, and a stack's tabs travel together
+ * because they travel as their box.
+ */
+function adoptRowOrder(scroller) {
+  const order = [];
+  const seen = new Set();
+  const take = (tab) => {
+    if (!tab || seen.has(tab)) return;
+    seen.add(tab);
+    order.push(tab);
+  };
+  for (const child of scroller.children) {
+    if (child.classList.contains("tab")) take(tabs[Number(child.dataset.index)]);
+    else if (child.classList.contains("tab-group")) {
+      for (const tab of tabs) if (tab.groupId === child.dataset.group) take(tab);
+    }
+  }
+  // Anything the row somehow did not mention keeps its place rather than being
+  // dropped: losing a tab to a reordering would be losing a document.
+  for (const tab of tabs) take(tab);
+
+  const stayActive = tabs[activeIndex];
+  tabs.length = 0;
+  tabs.push(...order);
+  if (stayActive) activeIndex = tabs.indexOf(stayActive);
+  render();
+  saveSession();
+}
+
+/**
+ * Puts a restored tab back into its stack.
+ *
+ * Called as each tab arrives, and it reorders the whole row every time: the
+ * documents come off disk in the session's order, but a deleted one drops out
+ * and a PDF lands late, so the promise that a stack's tabs stand side by side is
+ * one nobody has kept yet at this point. `gather` is what keeps it.
+ *
+ * No pruning here — a stack whose only document is a PDF still being parsed
+ * would be swept away a moment before its tab arrived.
+ */
+function restoreGroup(tab, groupId) {
+  const group = groups.find((each) => each.id === groupId);
+  if (!group) return;
+  tab.groupId = groupId;
+  // The document the stack had out comes back out: matched by path, since the
+  // ids it was written with died with the last run.
+  if (samePath(group.lastPath, tab.path)) group.lastTabId = tab.id;
+  regather();
+  render();
+}
+
+/**
+ * Pulls every stack's tabs back together, keeping the document in front in
+ * front. The row follows the tabs, so the active TAB is followed and its index
+ * asked for afterwards — an index is a position, and positions move.
+ */
+function regather() {
+  const stayActive = tabs[activeIndex];
+  const order = gather(tabs);
+  tabs.length = 0;
+  tabs.push(...order);
+  if (stayActive) activeIndex = tabs.indexOf(stayActive);
+}
+
+/** Undoes the stack without touching what is in it: the tabs stay, side by side. */
+function disbandGroup(group) {
+  for (const tab of tabs) if (tab.groupId === group.id) tab.groupId = null;
+  pruneGroups();
   render();
   saveSession();
 }
@@ -360,26 +567,33 @@ function renderTabs() {
 
   let activeEl = null;
 
-  tabs.forEach((tab, index) => {
-    const el = document.createElement("div");
-    el.className = "tab" + (index === activeIndex ? " active" : "");
-    el.dataset.index = index;
-
-    // Drag to reorder — POINTER-based, not HTML5 `draggable`. Tauri's own
-    // drag-drop (onDragDropEvent, how a .md gets opened) takes the WebView's
-    // native drag, which silently kills HTML5 draggable. So we track the
-    // pointer ourselves: it never touches the OS drag, so file-drop still works.
-    //
-    // A press that does not move is a click (activate). A press that moves past
-    // a few pixels is a drag. That is why there is no separate onclick: the
-    // mouseup decides which it was.
+  /**
+   * The one drag both things standing in the row share: a tab and a stack.
+   *
+   * POINTER-based, not HTML5 `draggable`. Tauri's own drag-drop
+   * (onDragDropEvent, how a .md gets opened) takes the WebView's native drag,
+   * which silently kills HTML5 draggable. So we track the pointer ourselves: it
+   * never touches the OS drag, so file-drop still works.
+   *
+   * A press that does not move is a click (`press`). A press that moves past a
+   * few pixels is a drag. That is why there is no separate onclick: the mouseup
+   * decides which it was.
+   *
+   * `pile` is given only by a tab: a tab can be dropped ON another to stack the
+   * two, a stack can only be moved along the row.
+   */
+  const wireRowDrag = (el, { press, pile = null, ignore = null, drop = null }) => {
     el.onmousedown = (event) => {
-      if (event.button !== 0 || event.target.closest(".close")) return;
+      if (event.button !== 0 || (ignore && event.target.closest(ignore))) return;
       const startX = event.clientX;
-      // The pointer's baseline for the transform. Re-based every time the tab
-      // is re-slotted, so the tab stays under the hand through the reflow.
+      // The pointer's baseline for the transform. Re-based every time it is
+      // re-slotted, so what is held stays under the hand through the reflow.
       let grabX = event.clientX;
       let dragging = false;
+
+      // What is being hovered squarely enough to be piled onto, if anything.
+      /** @type {HTMLElement | null} */
+      let onto = null;
 
       const onMove = (move) => {
         if (!dragging && Math.abs(move.clientX - startX) < 5) return;
@@ -388,29 +602,52 @@ function renderTabs() {
           el.classList.add("dragging");
         }
 
-        // The row reflows LIVE (B-16): the neighbours step aside as the tab
-        // passes, so none of them is ever buried under the one in hand — a tab
-        // that fully covered another made it "disappear". Which gap? The first
-        // tab whose midpoint is right of the pointer. Equal-width tabs (CSS)
-        // keep the test stable — no jitter at the boundary.
-        const others = [...scroller.querySelectorAll(".tab")].filter(
-          (each) => each !== el,
-        );
-        let before = null;
-        for (const other of others) {
-          const rect = other.getBoundingClientRect();
-          if (move.clientX < rect.left + rect.width / 2) {
-            before = other;
-            break;
+        // Two gestures share one drag, and the middle of a tab is what parts
+        // them: passing OVER a tab reorders, coming to rest ON one stacks them
+        // (13 Ağu). The zone is the middle third — wide enough to be hit on
+        // purpose, narrow enough that sweeping a tab across the row never trips
+        // it. A stack's chip is a target too: it is the stack.
+        onto = null;
+        if (pile) {
+          for (const other of scroller.querySelectorAll(".tab, .tab-group-chip")) {
+            if (other === el || el.contains(other)) continue;
+            const rect = other.getBoundingClientRect();
+            if (Math.abs(move.clientX - (rect.left + rect.width / 2)) < rect.width / 6) {
+              onto = other;
+              break;
+            }
           }
-        }
-        if (el.nextElementSibling !== before) {
-          const wasAt = el.offsetLeft;
-          scroller.insertBefore(el, before); // null lands it at the end
-          grabX += el.offsetLeft - wasAt; // layout moved under the pointer
+          for (const marked of scroller.querySelectorAll(".onto")) {
+            if (marked !== onto) marked.classList.remove("onto");
+          }
+          onto?.classList.add("onto");
         }
 
-        // The tab follows the pointer — that is the weight the old version was
+        // While a pile is being aimed at, the row holds still: neighbours
+        // stepping aside would move the very thing being aimed at.
+        if (!onto) {
+          // The row reflows LIVE (B-16): the neighbours step aside as the tab
+          // passes, so none of them is ever buried under the one in hand — a tab
+          // that fully covered another made it "disappear". Which gap? The first
+          // neighbour whose midpoint is right of the pointer. A stack counts as
+          // one neighbour, which is exactly what it looks like.
+          const others = [...scroller.children].filter((each) => each !== el);
+          let before = null;
+          for (const other of others) {
+            const rect = other.getBoundingClientRect();
+            if (move.clientX < rect.left + rect.width / 2) {
+              before = other;
+              break;
+            }
+          }
+          if (el.nextElementSibling !== before) {
+            const wasAt = el.offsetLeft;
+            scroller.insertBefore(el, before); // null lands it at the end
+            grabX += el.offsetLeft - wasAt; // layout moved under the pointer
+          }
+        }
+
+        // It follows the pointer — that is the weight the old version was
         // missing: it stayed put and only a line moved, so it felt like nothing
         // was being lifted.
         el.style.transform = `translateX(${move.clientX - grabX}px)`;
@@ -420,16 +657,52 @@ function renderTabs() {
         document.removeEventListener("mouseup", onUp);
         el.style.transform = "";
         el.classList.remove("dragging");
+        onto?.classList.remove("onto");
         if (!dragging) {
-          activate(index);
+          press();
           return;
         }
-        // The DOM already stands in the final order; the array follows it.
-        reorderTabs(index, [...scroller.querySelectorAll(".tab")].indexOf(el));
+        if (onto && pile) {
+          pile(onto);
+          return;
+        }
+        // The DOM already stands in the final order; the array follows it — and
+        // so does whatever else the row now says (membership).
+        drop?.();
+        adoptRowOrder(scroller);
       };
       document.addEventListener("mousemove", onMove);
       document.addEventListener("mouseup", onUp);
     };
+  };
+
+  const tabElement = (tab, index) => {
+    const el = document.createElement("div");
+    el.className = "tab" + (index === activeIndex ? " active" : "");
+    el.dataset.index = index;
+
+    wireRowDrag(el, {
+      press: () => activate(index),
+      ignore: ".close",
+      pile: (onto) => {
+        // Dropped on a chip: into that stack, at its end.
+        const stack = onto.classList.contains("tab-group-chip")
+          ? groups.find((each) => each.id === onto.closest(".tab-group")?.dataset.group)
+          : null;
+        if (stack) {
+          joinGroup(index, tabs.findLastIndex((each) => each.groupId === stack.id), stack);
+          return;
+        }
+        // Dropped on a tab: onto that tab, in its stack or in a new one.
+        joinGroup(index, Number(onto.dataset.index));
+      },
+      drop: () => {
+        // Membership is read off where it came to rest: the tab a stack has
+        // exposed is INSIDE the stack's box, so dragging it out of that box is
+        // how a document leaves the pile by hand.
+        tab.groupId = el.closest(".tab-group")?.dataset.group ?? null;
+      },
+    });
 
     const title = document.createElement("span");
     title.className = "name";
@@ -461,9 +734,145 @@ function renderTabs() {
     };
     el.append(close);
 
+    // The stack, in words. The gesture is the drag; this is for the tab that is
+    // already in a pile it should not be in, and for the reader who never
+    // discovers a gesture. Right-click is where the app's rarer verbs live
+    // already (KR-84) — no new drawing on the strip.
+    el.oncontextmenu = (event) => {
+      event.preventDefault();
+      const mine = groupOf(tab);
+      const others = groups.filter((group) => group.id !== tab.groupId);
+      popover(pointAnchor(event), [
+        ...(mine
+          ? [{ label: t("group.leave"), run: () => leaveGroup(tabs.indexOf(tab)) }]
+          : [{ label: t("group.new"), run: () => startGroup(tabs.indexOf(tab)) }]),
+        ...others.map((group) => ({
+          label: t("group.addTo", { name: group.name }),
+          run: () => {
+            const last = tabs.findLastIndex((each) => each.groupId === group.id);
+            joinGroup(tabs.indexOf(tab), last, group);
+          },
+        })),
+      ]);
+    };
+
     if (index === activeIndex) activeEl = el;
-    scroller.append(el);
-  });
+    return el;
+  };
+
+  /**
+   * A stack, on the strip: one chip, and a list that opens DOWNWARDS.
+   *
+   * It opened sideways first, and Zafer said the obvious thing (13 Ağu): a stack
+   * that unfolds along the row is not a stack. Sideways it gave back the space
+   * it had just taken and the strip was as crowded as before — the reason to
+   * pile documents up is that the row stays short. So the chip is the whole of
+   * it, and what is inside is a list under it, in the app's own menu.
+   *
+   * No colour. Chrome paints its groups, and paint is exactly what this strip
+   * cannot spend: one accent means navigation and active state here, and three
+   * more would make colour mean nothing at all. A ground of its own, a hairline
+   * and a name do the same work and go on meaning it.
+   */
+  const groupBox = (group, run) => {
+    const box = document.createElement("div");
+    box.className = "tab-group";
+    box.dataset.group = group.id;
+
+    // TWO JOBS, TWO THINGS — this is the third try, and the first two failed the
+    // same way (13 Ağu, Zafer: *"yalap şalap oldu… zımba nerede kendini
+    // gösteriyor, yok öyle bir şey"*). One line was being asked to say both
+    // "this document is open" (a tab's job) and "this is the zımba pile, four
+    // in it, click to list them" (the stack's job); whichever it said, the other
+    // one vanished — and a chip wearing a document's name that opens a MENU when
+    // pressed is neither.
+    //
+    // So: the chip says the stack and only the stack. If the document being read
+    // is one of the stack's, it stands beside the chip as a REAL tab — the same
+    // tab it would have been outside, with its ✕ and its dot. The rest are in
+    // the list. Leave for another document and that tab goes with the reading:
+    // the stack is not where the answer is any more, the other tab is.
+    //
+    // The row still stays short, which is the whole point of piling: a stack
+    // costs one chip plus, at most, the one document you are actually in.
+    // And the tab it has out STAYS out when the reading moves elsewhere (Zafer,
+    // aynı gün: *"başka sekmeye geçince grubun açık dosyası kapanmasın"*). A
+    // stack keeps its place the way a tab does: whichever of its documents you
+    // were last in stays on the strip, plain rather than paper, and one click
+    // brings you back to it. A tab that vanishes when you look away is a place
+    // you have to find again.
+    const inside = activeIndex >= run.from && activeIndex < run.to;
+    const openIndex = inside
+      ? activeIndex
+      : Math.max(
+          run.from,
+          tabs.findIndex((tab) => tab.groupId === group.id && tab.id === group.lastTabId),
+        );
+
+    const chip = document.createElement("div");
+    chip.className = "tab-group-chip";
+    chip.title = group.name;
+    // The same chevron the row already uses for "there is a list under this"
+    // (recents, the tab stack). One drawing, one meaning.
+    chip.innerHTML =
+      `<i class="tab-group-caret"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round">${ICONS.chevron}</svg></i>` +
+      `<span class="tab-group-name"></span>` +
+      `<span class="tab-group-count">${run.to - run.from}</span>`;
+    chip.querySelector(".tab-group-name").textContent = group.name;
+    box.append(chip, tabElement(tabs[openIndex], openIndex));
+
+    // The whole stack travels as one, and it travels the way a tab does — the
+    // row would otherwise have one thing in it that cannot be moved, which is
+    // exactly what Zafer ran into ("grup ile sekmeler yer değiştirmiyor").
+    // `ignore` keeps the exposed tab out of it: that tab is a tab, and it has
+    // its own drag (which is how a document is taken out of a stack).
+    wireRowDrag(box, {
+      ignore: ".tab",
+      press: () =>
+        popover(
+          chip,
+          tabs
+            .map((tab, index) => ({ tab, index }))
+            .filter((each) => each.tab.groupId === group.id)
+            .map(({ tab, index }) => ({
+              label: tab.title,
+              active: index === activeIndex,
+              dirty: tab.dirty,
+              run: () => activate(tabs.indexOf(tab)),
+              drop: () => closeTab(tabs.indexOf(tab)),
+            })),
+        ),
+    });
+
+    chip.oncontextmenu = (event) => {
+      event.preventDefault();
+      popover(pointAnchor(event), [
+        { label: t("group.rename"), run: () => renameGroup(chip, group) },
+        { label: t("group.disband"), run: () => disbandGroup(group) },
+        { label: t("group.closeAll"), run: () => closeGroup(group) },
+      ]);
+    };
+
+    // The stack holds the document being read: it wears the paper, because what
+    // is in front of the reader has to be findable on the strip. Nothing is
+    // switched away from — a stack is a place to keep tabs, not to leave them.
+    if (inside) {
+      box.classList.add("holds-active");
+      activeEl = box;
+    }
+    return box;
+  };
+
+  // Drawn in runs, not tab by tab: a stack is ONE thing on the strip, and the
+  // tabs in it are in its list (tab-groups.js keeps them side by side in the
+  // array, which is what makes a single chip possible).
+  for (const run of runsOf(tabs)) {
+    if (!run.groupId) {
+      scroller.append(tabElement(tabs[run.from], run.from));
+      continue;
+    }
+    scroller.append(groupBox(groups.find((each) => each.id === run.groupId), run));
+  }
 
   tabsEl.append(scroller);
 
@@ -782,6 +1191,10 @@ function renderStatus() {
 
 function activate(index) {
   activeIndex = index;
+  // A stack keeps the place you left it in: this is the document its chip keeps
+  // out on the strip once the reading moves on.
+  const group = groupOf(tabs[index]);
+  if (group) group.lastTabId = tabs[index].id;
   render();
   saveSession();
 }
@@ -821,6 +1234,7 @@ async function closeTab(index) {
   tab.pdf?.destroy();
   tab.host.remove();
   if (activeIndex >= tabs.length) activeIndex = tabs.length - 1;
+  pruneGroups(); // that may have been the stack's last document
   render();
   saveSession();
 }
@@ -839,6 +1253,9 @@ function createTab({ path, text }) {
     timer: null,
     host,
     view: null,
+    // Which stack it stands in, if any (13 Ağu). A new tab stands alone: piling
+    // is something the reader does, never something that happens to them.
+    groupId: null,
     // What was on disk the last time we read it or wrote it. The whole of
     // checkExternalChange rests on this one string (see it for why it is the
     // text and not an mtime).
@@ -914,7 +1331,7 @@ function createTab({ path, text }) {
     host,
     scroller: tab.view.scrollDOM,
     toTop: () => {
-      tab.view.scrollDOM.scrollTo({ top: 0, behavior: "smooth" });
+      scrollToTop(tab.view);
       saveSession();
     },
   });
@@ -974,6 +1391,7 @@ async function createPdfTab(path) {
     timer: null,
     host,
     view: null,
+    groupId: null,
     pdf: null,
   };
 
@@ -1938,7 +2356,20 @@ function saveSession() {
           // A PDF comes back to the page you were reading, not to a line of
           // text it does not have.
           sayfa: tab.pdf?.page ?? null,
+          // The stack it stands in comes back with it (13 Ağu): a pile the
+          // reader made is arrangement, and arrangement survives a restart the
+          // same way the tab order does.
+          grup: tab.groupId ?? null,
         })),
+      // Only the stacks somebody is standing in: a group whose tabs have all
+      // been closed is not written down, so it cannot come back empty.
+      gruplar: liveGroups(tabs, groups).map((group) => ({
+        id: group.id,
+        ad: group.name,
+        // Which of its documents the stack keeps out — by path, because tab ids
+        // are handed out afresh every launch.
+        sonYol: tabs.find((tab) => tab.id === group.lastTabId)?.path ?? null,
+      })),
       // The path, not the index: `sekmeler` above filters unsaved drafts out,
       // so an index counted over ALL tabs pointed at the wrong one whenever a
       // draft sat before the active tab (18 Tem review).
@@ -2001,15 +2432,32 @@ async function restoreSession() {
       }
     }),
   );
+  // The stacks come back before their tabs, so a tab can be put into one the
+  // moment it is made. `nextGroupId` is carried past the highest id in use —
+  // handing a new stack an id an old one already has would silently merge them.
+  groups = (session.gruplar ?? []).map((group) => ({
+    id: group.id,
+    name: group.ad ?? "",
+    lastPath: group.sonYol ?? null,
+  }));
+  for (const group of groups) {
+    const number = Number(String(group.id).replace(/^g/, ""));
+    if (Number.isFinite(number)) nextGroupId = Math.max(nextGroupId, number + 1);
+  }
+
   for (const each of loaded) {
     if (!each) continue;
     if (isPdfPath(each.entry.yol)) {
       createPdfTab(each.entry.yol).then((tab) => {
         if (each.entry.sayfa) tab.pdf?.goTo(each.entry.sayfa);
+        // A PDF is built asynchronously, so it joins its stack late — and the
+        // row it joins has to be put back in order after it does.
+        restoreGroup(tab, each.entry.grup);
       });
       continue;
     }
     const tab = createTab({ path: each.entry.yol, text: each.text });
+    restoreGroup(tab, each.entry.grup);
     // Wait for the editor to lay out before hunting for the anchor line.
     requestAnimationFrame(() => scrollToAnchor(tab.view, each.entry.kayitliYer));
   }
@@ -2210,7 +2658,46 @@ applyLanguage();
 loadSettings()
   .then(() => applyLanguage())
   .then(initDraftFolder)
-  .then(restoreSession);
+  .then(restoreSession)
+  // The document double-clicked in the file manager, opened AFTER the session:
+  // it is what the reader asked for just now, so it lands in front of the tabs
+  // that came back on their own.
+  .then(openStartupFiles);
+
+/**
+ * The files the app was started with — a `.md` double-clicked in Explorer
+ * (13 Ağu 2026).
+ *
+ * Asked for rather than listened for: on the very first launch the paths are in
+ * Rust's hands before this page exists, and an event sent then would be shouted
+ * into an empty room. Rust keeps them until they are collected (`startup_files`),
+ * and empties the list as it hands them over.
+ */
+async function openStartupFiles() {
+  try {
+    for (const path of await invoke("startup_files")) await landFile(path);
+  } catch (error) {
+    // Not fatal: it only means this launch opened nothing extra.
+    console.warn(error);
+  }
+}
+
+/**
+ * A path arriving from outside the window — the OS handing us a file. The same
+ * three answers a dropped file gets: a document opens, an image is placed, and
+ * anything else is refused out loud.
+ */
+async function landFile(path) {
+  if (/\.md$/i.test(path) || isPdfPath(path)) await openDocument(path);
+  else sayNotMarkdown(bodyEl, path.split(/[\\/]/).pop());
+}
+
+// A second double-click while the app is already up: Windows starts a second
+// process, the single-instance plugin hands its arguments to this one and the
+// new process exits. Without it the two would fight over session.json.
+listen("acilacak-belgeler", async (event) => {
+  for (const path of event.payload ?? []) await landFile(path);
+});
 
 // Which CLI agents are on this machine — asked once, and deliberately not
 // awaited by anything above: the answer is wanted by the time someone opens

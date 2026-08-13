@@ -1,6 +1,6 @@
 {
   "name": "md-plus",
-  "version": "0.5.0",
+  "version": "0.6.0",
   "license": "MIT",
   "private": true,
   "type": "module",
@@ -10,7 +10,7 @@
     "tauri": "tauri",
     "app": "tauri dev",
     "app:build": "tauri build",
-    "test": "node test/cipa.test.mjs && node test/isaret.test.mjs && node test/arama.test.mjs && node test/son.test.mjs && node test/atolye.test.mjs && node test/rota.test.mjs && node test/uyari.test.mjs && node test/oneri.test.mjs && node test/i18n.test.mjs && node test/dil.test.mjs && node test/pdf-sira.test.mjs && node test/pdf-pasaj.test.mjs && node test/alinti.test.mjs && node test/belge-bilgi.test.mjs && node test/ceviri.test.mjs && node test/saglayici.test.mjs && node test/css.test.mjs"
+    "test": "node test/cipa.test.mjs && node test/isaret.test.mjs && node test/arama.test.mjs && node test/son.test.mjs && node test/atolye.test.mjs && node test/rota.test.mjs && node test/uyari.test.mjs && node test/oneri.test.mjs && node test/i18n.test.mjs && node test/dil.test.mjs && node test/pdf-sira.test.mjs && node test/pdf-pasaj.test.mjs && node test/alinti.test.mjs && node test/belge-bilgi.test.mjs && node test/ceviri.test.mjs && node test/saglayici.test.mjs && node test/gruplar.test.mjs && node test/css.test.mjs"
   },
   "devDependencies": {
     "@tauri-apps/cli": "^2.11.4",

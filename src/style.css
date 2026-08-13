@@ -474,6 +474,103 @@ body.maximized .resize-edges {
   background: var(--accent);
   box-shadow: 0 0 0 3px var(--surface);
 }
+/* A stack of tabs about one subject (13 Ağu 2026): ONE chip in the row, with the
+   documents in it listed in a menu underneath.
+
+   It unfolded sideways at first and gave back the space it had just saved
+   (Zafer: "istif sağa doğru açılınca çok bir anlamı olmuyor"). A stack exists so
+   the row stays short; the list therefore drops down, in the app's own menu.
+
+   No colour. Chrome tells its groups apart by painting them, and paint is the
+   one thing this strip cannot spend: the accent already means navigation and
+   active state, and three more colours would leave it meaning nothing. So the
+   stack is told by ground, by a hairline and by a name — the same three things
+   every other grouping in this app is told by. */
+.tab-group {
+  display: flex;
+  align-items: stretch;
+  min-width: 0;
+  background: var(--n1);
+  border-radius: var(--r2) var(--r2) 0 0;
+  box-shadow: inset 0 0 0 1px var(--n4);
+}
+/* The head: caret, name, count. Its own ground, so the name never reads as one
+   more tab in the row. */
+.tab-group-chip {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 0 9px;
+  max-width: 170px;
+  font-size: 12.5px;
+  color: var(--n6);
+  white-space: nowrap;
+  cursor: default;
+  border-radius: var(--r2) var(--r2) 0 0;
+}
+.tab-group-chip:hover {
+  background: var(--hover);
+}
+/* The stack's own name — a label, not a document. It is the one thing the chip
+   ever says; the document being read stands next to it as a real tab. */
+.tab-group-name {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  font-weight: 600;
+}
+/* How many documents are in there — the one number the chip owes the reader,
+   since the documents themselves are a click away. */
+.tab-group-count {
+  font-family: var(--mono);
+  font-size: 10.5px;
+  color: var(--faint);
+}
+/* Pointing down: there is a list under this. The same chevron, and the same
+   sentence, as the recents shelf and the tab stack. */
+.tab-group-caret {
+  display: flex;
+  color: var(--faint);
+}
+/* A stack always has ONE of its documents out, as a real tab: the one you were
+   last in. It stays out when the reading moves elsewhere — plain then, paper
+   when it is the document in front. The chip stays the chip; it never pretends
+   to be the document. */
+.tab-group.holds-active .tab-group-chip {
+  color: var(--ink);
+}
+/* The seam between the stack's head and the document it has out: the same
+   hairline the tabs part with. */
+.tab-group .tab {
+  border-radius: 0 var(--r2) 0 0;
+  box-shadow: inset 1px 0 0 var(--n4);
+}
+/* Renaming happens in place, in the head itself. */
+.tab-group-field {
+  width: 110px;
+  border: none;
+  outline: none;
+  background: transparent;
+  font: inherit;
+  font-weight: 600;
+  color: var(--ink);
+}
+/* The tab under the pointer while a tab is being dragged squarely onto it: this
+   is the pile about to be made. A ring, not a fill — the tab keeps its own
+   state (active, hovered) while it is being aimed at. */
+.tab.onto,
+.tab-group-chip.onto {
+  background: var(--accent-soft);
+  box-shadow: inset 0 0 0 1.5px var(--accent);
+  border-radius: var(--r2) var(--r2) 0 0;
+}
+/* A stack travels the way a tab does, and lifts the same way. */
+.tab-group.dragging {
+  z-index: 5;
+  box-shadow: var(--lift1);
+  background: var(--surface);
+  pointer-events: none;
+}
+
 /* The strip's tail: the two jobs that MAKE tabs. "+" opens an empty one, the
    folder opens a full one, and both put the result right beside themselves, at
    the end of the strip — their place is their reason.
