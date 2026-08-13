@@ -28,6 +28,8 @@ src-tauri/gen/schemas/capabilities.json
 
 # Kişisel çalışma günlüğü ve araçlar — dağıtılmaz. Paylaşım: README.md.
 CLAUDE.md
+KOD-HARITASI.md
+TUZAKLAR.md
 ISTERLER.md
 YAPILACAKLAR.md
 BULGULAR.md
