@@ -470,7 +470,14 @@ function modelSatiri(b, index, model, render, canliModeller) {
   baglantininModelleri(b)
     .then((modeller) => {
       liste.replaceChildren();
-      for (const opt of modeller) liste.append(new Option(opt, opt));
+      // Yalnız `value` — metin YOK. `new Option(ad, ad)` satırı iki sütun yapar
+      // (Chromium datalist'te değer solda, etiket sağda) ve aynı ad arka arkaya
+      // iki kez yazılır.
+      for (const ad of modeller) {
+        const opt = document.createElement("option");
+        opt.value = ad;
+        liste.append(opt);
+      }
       // Chromium can bind an <input list> before a slow first fetch's options
       // arrive; re-setting the attribute forces it to pick them up.
       kutu.removeAttribute("list");

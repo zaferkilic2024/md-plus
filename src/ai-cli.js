@@ -79,6 +79,14 @@ async function askCli(cfg, prompt, signal) {
     throw new Error(res.stderr?.trim() || `${cfg.ad} ${res.code} ile çıktı.`);
   }
 
+  // Sıfırla çıkıp stdout'a HİÇBİR ŞEY yazmamak da bir başarısızlıktır ve sebebi
+  // stderr'dedir. agy geçersiz model adında tam bunu yapıyor: "Error: invalid
+  // model selection … Available models: …" stderr'e gider, çıkış kodu 0 kalır.
+  // Bu kural olmadan kart boş bir cevap gösterir ve kullanıcı yanlış adı asla
+  // öğrenemez — sessiz kusur, gürültülüsünden beterdir.
+  const err = res.stderr?.trim();
+  if (!res.stdout?.trim() && err) throw new Error(err);
+
   // The RAW stdout goes to the parser — the adapter does not assume JSON. Claude
   // Code prints JSON and parses it; Antigravity prints plain text and takes it as
   // is. Assuming a format here is exactly the mistake the web docs made.
@@ -221,6 +229,37 @@ async function listModels(bin, args, name) {
 }
 
 /**
+ * `agy models` çıktısından modelin GÖRÜNEN ADINI alır.
+ *
+ * Satır artık çift alanlı: `gemini-3.7-flash-high⇥Gemini 3.7 Flash (High)`.
+ * Eskiden yalnız ikinci alan basılıyordu ve satırın tamamını model adı saymak
+ * (listModels'in ham çıktısı) işe yarıyordu. Biçim değişince satırın TAMAMI
+ * `--model` argümanı oldu, içindeki sekme yetki doğrulayıcısına takıldı ve
+ * öneri "program not allowed on the configured shell scope: agy" diye düştü —
+ * yani argüman hatası, program hatası kılığında (14 Ağu 2026, Zafer'in bulgusu).
+ *
+ * Sekmesiz satır model değildir ("Fetching available models..." başlığı gibi);
+ * eleme kuralı bu.
+ *
+ * NEDEN KİMLİK DEĞİL DE GÖRÜNEN AD: agy ikisini de tanıyor, ama kanonik saydığı
+ * ad görünen addır — tanımadığı bir ad verince bastığı "Available models"
+ * listesi görünen adlardan oluşuyor. Kullanıcının kutusunda ve iş satırında
+ * duracak şey de o: ayarlarda ne yazıyorsa CLI'a giden odur, çeviri katmanı
+ * yoktur. (İkisi de gerçek çalıştırmayla sınandı: `--model
+ * "Gemini 3.6 Flash (High)"` ✓, `--model gemini-3.7-flash-low` ✓.)
+ */
+export function agyModelNames(lines) {
+  return lines
+    .filter((line) => line.includes("\t"))
+    .map((line) => line.slice(line.indexOf("\t") + 1).trim())
+    .filter(Boolean);
+}
+
+async function antigravityModels() {
+  return agyModelNames(await listModels("agy", ["models"], "agy-models"));
+}
+
+/**
  * The CLI providers. Each carries everything the generic adapter needs: the
  * command, an argv builder, a maximum length, an output parser tuned to that
  * agent's shape, and either a fixed model list or a live `fetchModels`.
@@ -286,6 +325,8 @@ export const providers = [
   // Gerçek: `-p` (print, non-interactive) + `--model`. Çıktı JSON değil DÜZ METİN,
   // banner/log gürültüsü olmadan sadece cevap — `stdout.trim()` yeter. Model
   // listesi artık CANLI: `agy models` çalıştırılır, fixedModels yalnız yedek.
+  // O listenin satırı `kimlik⇥görünen ad`; aldığımız alan görünen addır
+  // (bkz. agyModelNames).
   {
     id: "antigravity",
     ad: "Antigravity",
@@ -296,9 +337,9 @@ export const providers = [
     abonelik: true,
     maxLength: 20000,
     // Live from `agy models`; falls back to the fixed list if the command fails.
-    // The `agy-models` name maps to its own entry in cli-local.json (args differ,
-    // so it needs a separate allow rule).
-    fetchModels: () => listModels("agy", ["models"], "agy-models"),
+    // The `agy-models` name maps to its own entry in the shell scope (args
+    // differ, so it needs a separate allow rule).
+    fetchModels: antigravityModels,
     fixedModels: [
       "Gemini 3.5 Flash (Medium)",
       "Gemini 3.5 Flash (High)",
