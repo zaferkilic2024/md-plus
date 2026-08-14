@@ -49,10 +49,9 @@ jobs:
           # Sürüm notu her sürümde ELLE güncellenir. Ayrı bir CHANGELOG yok:
           # aynı şeyin iki yerde yaşaması, birinin eskimesi demektir.
           releaseBody: |
-            - **Sekme grupları:** aynı konudaki belgeleri üst üste koyun. Bir sekmeyi diğerinin üstüne bırakın, istif doğsun; adını değiştirin, satırda tek başlık kaplasın. İçindekiler başlığa tıklayınca listelenir, en son bulunduğunuz belge açık kalır.
-            - **`.md` dosyaları MD Plus ile açılır:** artık "birlikte aç" listesindeyiz. Açık uygulama varken çift tıklanan belge yeni sekmede açılır — ikinci bir pencere açılmaz.
-            - Uzun belgede başa dön oku artık tek adımda tepeye gidiyor.
-            - Görseli olmayan belgenin yanında boş bir `belge.images/` klasörü açılmıyor.
+            - **Antigravity ajanı yeniden çalışıyor:** model listesinin biçimi değişmişti, öneri istendiğinde hata dönüyordu.
+            - Ayarlar'daki model listesi aynı adı iki kez yazmıyor.
+            - Komut satırı ajanı bir hata döndürdüğünde kart artık boş kalmıyor, hatanın kendisini gösteriyor.
 
             MSI kurulumunu aşağıdaki Assets bölümünden indirin. winget: `winget install ZaferKilic.MDPlus`
           releaseDraft: false
