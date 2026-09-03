@@ -1,6 +1,6 @@
 [package]
 name = "md-plus"
-version = "0.6.1"
+version = "0.7.0"
 description = "MD Plus — çok sekmeli Markdown okuyucu, yazıcı ve belgeler arası aktarma"
 edition = "2021"
 license = "MIT"
