@@ -48,10 +48,17 @@ jobs:
           releaseName: "MD Plus ${{ github.ref_name }}"
           # Sürüm notu her sürümde ELLE güncellenir. Ayrı bir CHANGELOG yok:
           # aynı şeyin iki yerde yaşaması, birinin eskimesi demektir.
+          #
+          # BURAYI GÜNCELLEMEYİ UNUTMA. 0.7.0'da unutuldu ve GitHub'a 0.6.1'in
+          # notuyla çıktı: sürüm numarası dört dosyada yaşadığı için "dört
+          # dosyayı artır" diye bir alışkanlık vardı, not ise BEŞİNCİ yerdir ve
+          # listede yoktu. Tag'i göndermeden önce burası yeni sürümü anlatıyor
+          # olmalı.
           releaseBody: |
-            - **Antigravity ajanı yeniden çalışıyor:** model listesinin biçimi değişmişti, öneri istendiğinde hata dönüyordu.
-            - Ayarlar'daki model listesi aynı adı iki kez yazmıyor.
-            - Komut satırı ajanı bir hata döndürdüğünde kart artık boş kalmıyor, hatanın kendisini gösteriyor.
+            - **Listeler girintili ve iç içe yazılabiliyor.** Liste maddesi kenardan içeri alındı; uzun bir madde satır sonuna sarınca ikinci satırı işaretin değil metnin altına dönüyor. `Tab` maddeyi bir seviye içe, `Shift+Tab` bir seviye dışa alır — madde alt maddeleriyle birlikte taşınır.
+            - **Numaralı maddeler yerini söylüyor:** üst seviye "1.", altındaki "1.1", onun altındaki "1.1.1". Numara belgedeki rakamdan değil maddenin gerçek yerinden okunuyor, yani her maddeye "1." yazsanız da sıra doğru görünür.
+            - **Sekme şeridi artık kaymıyor.** Şerit dolduğunda sığmayan sekmeler yana kaydırılmak yerine oktaki listeye giriyor; okuduğunuz sekme her zaman görünür kalıyor.
+            - Sekme grupları sıkışmıyor: grubun adı ve yanında açık tuttuğu belge, şerit dolsa da bozulmuyor.
 
             MSI kurulumunu aşağıdaki Assets bölümünden indirin. winget: `winget install ZaferKilic.MDPlus`
           releaseDraft: false
