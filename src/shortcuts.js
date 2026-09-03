@@ -69,6 +69,9 @@ export function shortcutGroups() {
         { tus: "Ctrl+Alt+1 / 2 / 3", ad: t("sc.heading") },
         { tus: "Ctrl+Alt+0", ad: t("sc.paragraph") },
         { tus: "Ctrl+Shift+L", ad: t("sc.list") },
+        // Only inside a list — everywhere else Tab goes on moving the focus, and
+        // the row says the action, not the exception.
+        { tus: "Tab / Shift+Tab", ad: t("sc.listNest") },
         { tus: "Ctrl+Shift+Q", ad: t("sc.quote") },
       ],
     },

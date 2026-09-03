@@ -6,6 +6,8 @@
 // heading, it never splits it.
 
 import { EditorSelection } from "@codemirror/state";
+import { ensureSyntaxTree, syntaxTree } from "@codemirror/language";
+import { nestPlan } from "./list-shape.js";
 import { t } from "./i18n.js";
 
 // ---- inline ----------------------------------------------------------------
@@ -153,6 +155,43 @@ export const setHeading = (level) => (view) =>
   setBlockPrefix(view, level === 0 ? "" : "#".repeat(level) + " ");
 
 export const toggleList = (view) => setBlockPrefix(view, "- ");
+
+/**
+ * Tab / Shift+Tab inside a list: one level in, one level out (UC-06).
+ *
+ * Tab is how you LEAVE a text surface everywhere else, so the key is only taken
+ * when the cursor really is in a list and handed straight back when it is not —
+ * a writer tabbing out of the editor must go on being able to.
+ *
+ * The arithmetic is in list-shape.js, where it can be tested: this is the half
+ * that needs a view.
+ */
+export const nestList = (view, deeper) => {
+  const { state } = view;
+  const range = state.selection.main;
+  // The parse is pushed as far as the cursor before the question is asked.
+  // CodeMirror parses lazily, so deep in a long document `syntaxTree` can hand
+  // back a tree that has not reached the line under the cursor — and a list
+  // that has not been read yet looks exactly like no list at all: the key would
+  // be handed back, the focus would leave the text, and the writer would press
+  // it a second time. Same budget, same fallback as the surface's drawing.
+  const tree = ensureSyntaxTree(state, range.to, 100) ?? syntaxTree(state);
+  const changes = nestPlan(
+    tree,
+    state.doc,
+    state.doc.lineAt(range.from).number,
+    state.doc.lineAt(range.to).number,
+    deeper,
+  );
+  if (changes === null) return false;
+  // ONE transaction, or undo would give the levels back a line at a time
+  // (the trap: a bulk write that is not a single operation turns the undo
+  // stack into rubbish).
+  if (changes.length) {
+    view.dispatch({ changes, scrollIntoView: true, userEvent: "input.indent" });
+  }
+  return true;
+};
 export const toggleQuote = (view) => setBlockPrefix(view, "> ");
 
 /**

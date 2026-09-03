@@ -285,6 +285,7 @@ export const tr = {
   "sc.heading": "Başlık",
   "sc.paragraph": "Paragraf",
   "sc.list": "Liste",
+  "sc.listNest": "Liste maddesini içe / dışa al",
   "sc.quote": "Alıntı",
   "sc.markSel": "Seçimi işaretle",
   "sc.travelMark": "Sonraki / önceki işarete git",

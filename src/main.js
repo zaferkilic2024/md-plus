@@ -965,8 +965,10 @@ function renderTabs() {
   );
   docRowEl.hidden = tabs.length === 0;
 
-  // Whichever tab you are reading has to be the one you can see.
-  activeEl?.scrollIntoView({ block: "nearest", inline: "nearest" });
+  // (Whichever tab you are reading has to be the one you can see. That used to
+  // be a `scrollIntoView` here; the row does not slide any more — Zafer, 3 Eyl:
+  // *"sola doğru kayma hiç olmasın"* — so keeping the active tab in sight is
+  // now measureTabs's job: it is simply never the one put away.)
 
   // The conditional tools on the left: back (only with somewhere to go back
   // to) and the marks list (only with marks to list).
@@ -974,7 +976,7 @@ function renderTabs() {
   chrome.updateMarksTool();
   chrome.updateContentsTool();
 
-  measureTabs();
+  measureTabs(activeEl);
 }
 
 /**
@@ -1037,20 +1039,67 @@ function renderTransferRow() {
   chrome.updateContentsTool();
 }
 
-/** Shows the stack only while the tabs actually overflow their box. */
-function measureTabs() {
+/**
+ * Puts away whatever no longer fits, and brings out the chevron for it.
+ *
+ * The row does not scroll (Zafer, 3 Eyl: *"sola doğru kayma hiç olmasın. şerit
+ * yetmediğinde istifli ok çıksın"*). It used to: the tabs lived in a box that
+ * slid sideways to keep the active one in view, which meant the leftmost thing
+ * on the strip — usually a stack — drifted off the edge and sat there half cut.
+ * A strip that moves is a strip you have to re-read every time.
+ *
+ * So the answer to a full row is subtraction, not motion: the things that do
+ * not fit are simply not drawn, and the chevron beside them says how to reach
+ * them. Two rules make it stable:
+ *
+ *   · Put away from the END. What is on the left stays where it was, which is
+ *     the whole point — a place you can look at twice.
+ *   · Never put away the tab being read. It is the one thing on the row that
+ *     has to be there, so it is skipped and its neighbour goes instead.
+ *
+ * The loop re-measures each time because taking one away lets the rest widen
+ * (they share the room); it ends because a tab has a floor width, so a row of
+ * a given size holds a fixed number of them however wide they would like to be.
+ */
+function measureTabs(activeEl = null) {
   const scroller = tabsEl.querySelector(".tab-scroll");
   const stack = tabsEl.querySelector(".tab-stack");
   if (!scroller || !stack) return;
 
   requestAnimationFrame(() => {
-    stack.hidden = scroller.scrollWidth <= scroller.clientWidth + 1;
+    const row = [...scroller.children];
+    for (const each of row) each.hidden = false;
+
+    // Belt and braces. `overflow: hidden` stops a person from scrolling this
+    // box, not the browser: focusing something inside it still scrolls it into
+    // view, and a strip that has slid even once stays slid. Nothing below is
+    // supposed to leave anything out of sight, so the offset is put back to
+    // zero every time rather than trusted to have stayed there.
+    scroller.scrollLeft = 0;
+
+    let put = 0;
+    // `+ 1`: a sub-pixel layout can report one more than it uses.
+    while (scroller.scrollWidth > scroller.clientWidth + 1) {
+      const last = row.findLast((each) => !each.hidden && each !== activeEl);
+      if (!last) break; // only the active one is left; it stays, whatever it costs
+      last.hidden = true;
+      put++;
+    }
+    stack.hidden = put === 0;
   });
 }
 
 // The strip can start overflowing without a single tab being opened: the window
-// only has to get narrower.
-window.addEventListener("resize", measureTabs);
+// only has to get narrower. The active tab is found again rather than
+// remembered — a render may have replaced the element since.
+// The stack is asked for FIRST: when the document being read is inside one, the
+// thing standing on the row is the stack, not the tab within it — and the row
+// is what this measures.
+window.addEventListener("resize", () =>
+  measureTabs(
+    tabsEl.querySelector(".tab-group.holds-active") ?? tabsEl.querySelector(".tab.active"),
+  ),
+);
 
 // Every open document keeps its editor in the DOM and only toggles visibility.
 // Detaching and re-appending it on each switch would throw away the scroll

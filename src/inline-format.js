@@ -22,6 +22,7 @@
 import { Decoration, ViewPlugin, WidgetType } from "@codemirror/view";
 import { ensureSyntaxTree, syntaxTree } from "@codemirror/language";
 import { isCiteFace } from "./citation.js";
+import { orderedLabelAt, shapeAt } from "./list-shape.js";
 import { t } from "./i18n.js";
 
 const hidden = Decoration.replace({});
@@ -68,18 +69,55 @@ class LabelWidget extends WidgetType {
 
 // A bullet list's "*" or "-" becomes a real bullet; an ordered list's "1." is
 // already what the reader should see, so it is left alone.
+//
+// Either way the marker wears the slot class: it hangs out to the left of the
+// text, in the room the line's own indent opened for it. That is what makes a
+// long item wrap back under the WORDS instead of under the bullet.
 class BulletWidget extends WidgetType {
   eq() {
     return true;
   }
   toDOM() {
     const dot = document.createElement("span");
-    dot.className = "cm-bullet";
+    dot.className = "cm-list-mark cm-bullet";
     dot.textContent = "•";
     return dot;
   }
 }
 const bullet = Decoration.replace({ widget: new BulletWidget() });
+
+// A numbered item's place, counted rather than read: "1.", then "1.1" under it.
+// The file keeps its own plain "1." / "2." — this is a drawing, the way the
+// bullet is (portability law).
+class NumberWidget extends WidgetType {
+  constructor(label) {
+    super();
+    this.label = label;
+  }
+  eq(other) {
+    return other.label === this.label;
+  }
+  toDOM() {
+    const span = document.createElement("span");
+    span.className = "cm-list-mark cm-list-number";
+    span.textContent = this.label;
+    return span;
+  }
+}
+
+const listMark = Decoration.mark({ class: "cm-list-mark" });
+const listMarkRaw = Decoration.mark({ class: "cm-list-mark cm-mark" });
+// The spaces a nested item is written with. The line's own padding already says
+// how deep it is, so these must not indent it a second time — they are taken
+// out of the flow with the same `hidden` every other piece of machinery uses.
+//
+// They were first given zero width instead, to keep them as characters the
+// cursor could walk through. That cost a bug worth remembering: an inline-block
+// with `overflow: hidden` takes its BASELINE from its bottom edge, so the empty
+// box stood a whole line-height above the text and every nested item opened a
+// gap under itself (Zafer, 3 Eyl: *"gereksiz boş satırlar açılıyor"*). Zero
+// width is not zero height.
+const listIndent = hidden;
 
 // A "---" thematic break, drawn our own way: a line that is solid in the middle
 // and fades toward both edges. In any other reader it is still a plain "---",
@@ -210,14 +248,43 @@ function buildDecorations(view) {
         }
 
         if (node.name === "ListMark") {
+          // The marker and the space after it travel as one, the way "## " does:
+          // hung together, the text behind them starts on the line's own left
+          // edge and stays there whether the marker is a bullet or the raw dash.
+          let end = node.to;
+          if (doc.sliceString(end, end + 1) === " ") end += 1;
+
           const raw = doc.sliceString(node.from, node.to);
-          if (raw === "*" || raw === "-" || raw === "+") {
+          if (raw !== "*" && raw !== "-" && raw !== "+") {
+            // A numbered item says its PLACE, not its digits: "1." at the top,
+            // "1.1" one level in (KR-113). The digits on the page are not a
+            // fact — writers number every item "1." and let the renderer sort
+            // it out, and a nested item keeps whatever number it moved with.
+            //
+            // ALWAYS, including on the cursor's line — and this is the one
+            // place where the "raw marks come back under the cursor" law is
+            // deliberately not followed. It cannot be: a mark's two faces are
+            // the same token in two skins ("-" and "•"), but a number's two
+            // faces are two different VALUES, and swapping them under the
+            // cursor made the list count itself differently line by line as
+            // the reader walked down it (Zafer, 3 Eyl: *"2. maddenin üstüne
+            // gelince 3., 3. maddenin üstüne gelince 2. düzeliyor"*) — and
+            // moved the prose sideways with every swap, because "1.1" and "1."
+            // are not the same width. A number that flickers is worse than a
+            // number you cannot see the source of.
+            const label = orderedLabelAt(tree, line);
             decorations.push(
-              active.has(line.number)
-                ? dimmed.range(node.from, node.to)
-                : bullet.range(node.from, node.to),
+              label
+                ? Decoration.replace({ widget: new NumberWidget(label) }).range(node.from, end)
+                : listMark.range(node.from, end),
             );
+            return;
           }
+          decorations.push(
+            active.has(line.number)
+              ? listMarkRaw.range(node.from, end)
+              : bullet.range(node.from, end),
+          );
           return;
         }
 
@@ -256,6 +323,34 @@ function buildDecorations(view) {
         }
       },
     });
+
+    // ---- lists -------------------------------------------------------------
+    //
+    // A list is set in from the margin the way any typeset list is, and each
+    // nesting level moves it one step further. Both come from the LINE, not
+    // from the characters in it: an indent written on the line is a padding CM
+    // measures with the line, so a wrapped item comes back under its own text
+    // and the cursor keeps finding the line in vertical motion. (The two spaces
+    // the file is nested with are given no width instead — they are still there
+    // to walk through, they simply do not indent it twice.)
+    //
+    // The depth is written as a custom property rather than a padding, so a
+    // list inside a quote or a callout ADDS to that box's own left padding
+    // instead of overwriting it (style.css).
+    for (let n = doc.lineAt(from).number; n <= doc.lineAt(to).number; n++) {
+      const line = doc.line(n);
+      const shape = shapeAt(tree, line);
+      if (!shape) continue;
+      decorations.push(
+        Decoration.line({
+          class: "cm-list",
+          attributes: { style: `--list-depth:${shape.depth}` },
+        }).range(line.from),
+      );
+      if (shape.indent > 0) {
+        decorations.push(listIndent.range(line.from, line.from + shape.indent));
+      }
+    }
   }
 
   // sort=true: line and inline decorations were collected out of order.

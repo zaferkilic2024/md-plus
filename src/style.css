@@ -353,23 +353,36 @@ body {
 body.maximized .resize-edges {
   display: none;
 }
-/* The tabs live in their own scrolling box. `min-width: 0` is the load-bearing
-   line: without it a flex child refuses to shrink below its content, so the
-   strip grew sideways and buried the icons at both ends. */
+/* The tabs live in their own box. `min-width: 0` is the load-bearing line HERE
+   and only here: without it a flex child refuses to shrink below its content,
+   so the strip grew sideways and buried the icons at both ends. This box is
+   allowed to be smaller than what is in it — that is exactly how it comes to
+   know it is full. The things INSIDE it are not (see .tab-group). */
 .tab-scroll {
   display: flex;
   align-items: stretch;
   /* As wide as the tabs are, and no wider — so "+" sits right beside the last
-     tab instead of being flung to the far end of the strip. It gives way (and
-     starts scrolling) only once there is no room left. */
+     tab instead of being flung to the far end of the strip. It gives way only
+     once there is no room left, and what then does not fit is put away
+     (main.js/measureTabs) rather than pushed out of sight. */
   flex: 0 1 auto;
   min-width: 0;
   gap: 1px;
-  overflow-x: auto;
+  /* The row does NOT slide (Zafer, 3 Eyl). It scrolled once, to keep the active
+     tab in view, and the price was that everything to its left drifted off the
+     edge — a stack, usually, sitting half cut at the boundary. A strip that
+     moves has to be re-read every time you look at it. What no longer fits is
+     put away instead (main.js/measureTabs) and the chevron says where it went;
+     nothing here is ever drawn in half. */
+  overflow: hidden;
   scrollbar-width: none;
-  /* Scrolling comes to rest on a tab boundary, so the strip never settles with a
-     tab sliced in half — and its ✕ sliced off with it. */
-  scroll-snap-type: x proximity;
+}
+/* Put away, not shrunk: `.tab` and `.tab-group` carry a display of their own, so
+   the browser's own [hidden] rule would lose to them and the tab would stay on
+   the row, invisible but still taking its width. */
+.tab[hidden],
+.tab-group[hidden] {
+  display: none;
 }
 .tab-scroll::-webkit-scrollbar {
   display: none;
@@ -383,7 +396,6 @@ body.maximized .resize-edges {
   width: 156px;
   min-width: 96px;
   flex: 0 1 auto;
-  scroll-snap-align: start;
   padding: 0 10px;
   font-size: 13.5px;
   color: var(--n6);
@@ -489,7 +501,29 @@ body.maximized .resize-edges {
 .tab-group {
   display: flex;
   align-items: stretch;
-  min-width: 0;
+  /* What gives way, and what does not (Zafer, 3 Eyl — twice). A stack is a chip
+     plus the one document it has out. Squeezed, the CHIP was the half that
+     broke: the name ellipsed away and the pile lost its name, so the pair read
+     as two damaged tabs instead of one stack. The chip is therefore fixed
+     (below) and the group's own box goes on shrinking — which lands the whole
+     squeeze on the tab beside it, where it belongs.
+
+     Refusing to shrink at all was the first answer and it bought a second
+     problem: with many documents open, that one 156px slot sat among a row of
+     96px ones and the strip read as lopsided (*"dengesizlik oluşuyor"*). Tabs
+     are a row of equal slots; a tab inside a stack is still a tab.
+
+     But it shrinks down to its CONTENTS and not one pixel further, and that is
+     the line the third round was lost on (Zafer: *"grup tabin yapışkan tabini
+     de sıkıştırıyor. sıkıştırabilme esnekliği kalmayınca da sola kaymaya
+     başlıyor"*). A `min-width: 0` here — which is what a flex child is usually
+     given so it CAN shrink — lets the box be squeezed narrower than the chip
+     and the tab inside it, so the two get crushed together and spill over
+     their own edge. Worse, a box that can always be squeezed a little more
+     means the row never reports that it is full, so the chevron never comes
+     and the strip has nowhere to put the overflow but sideways. `auto` (the
+     default, so: no rule) is the floor — chip plus one tab at its own minimum,
+     and past that the row is full and says so. */
   background: var(--n1);
   border-radius: var(--r2) var(--r2) 0 0;
   box-shadow: inset 0 0 0 1px var(--n4);
@@ -501,6 +535,10 @@ body.maximized .resize-edges {
   align-items: center;
   gap: 6px;
   padding: 0 9px;
+  /* The one thing on the row that never gives. The chip is the stack's whole
+     identity — a name and a count — and a name cut to "Zım…" says nothing the
+     reader can use. The tabs around it shrink; this does not. */
+  flex: none;
   max-width: 170px;
   font-size: 12.5px;
   color: var(--n6);
@@ -3818,6 +3856,66 @@ body.dragging .body {
   color: var(--tip);
 }
 
+/* ---- lists ----
+   Set in from the margin the way a typeset list is (Zafer, 3 Eyl: the items sat
+   flush under the prose), with the marker hanging in the room the indent opens.
+   Wrap a long item and its second row comes back under the WORDS, not under the
+   bullet — the standard hanging indent, and the same trick a heading's "## "
+   already uses.
+
+   Three numbers, all in em so the whole ladder grows with the reading size:
+     base — how far in the list starts
+     step — what one level of nesting costs
+     slot — the room the marker hangs in
+
+   The indent is a PADDING, never a margin: CodeMirror measures line heights
+   itself and collapsing margins make it lose the line in vertical motion. And
+   the depth arrives as a custom property rather than a padding of its own, so a
+   list inside a quote or a callout adds to that box's padding instead of
+   wiping it out. */
+.host {
+  --list-base: 1.1em;
+  --list-step: 1.5em;
+  --list-slot: 1.4em;
+}
+.host .cm-list {
+  padding-left: calc(
+    var(--list-base) + var(--list-depth, 0) * var(--list-step) + var(--list-slot)
+  );
+}
+.host .cm-quote.cm-list {
+  padding-left: calc(
+    20px + var(--list-base) + var(--list-depth, 0) * var(--list-step) +
+      var(--list-slot)
+  );
+}
+.host .cm-callout.cm-list {
+  padding-left: calc(
+    16px + var(--list-base) + var(--list-depth, 0) * var(--list-step) +
+      var(--list-slot)
+  );
+}
+/* Pulled back by exactly the slot it is given, so the text after it starts on
+   the line's own left edge — and starts in the SAME place whether the marker is
+   the drawn bullet or the raw "- " the cursor's line shows. `min-width`, not
+   `width`: a two-digit number in an ordered list must push rather than clip. */
+.host .cm-list-mark {
+  display: inline-block;
+  min-width: var(--list-slot);
+  margin-left: calc(-1 * var(--list-slot));
+}
+/* A counted number ("1.", then "1.1" under it). The gap is carried as padding
+   and taken back out of the minimum, so a short number lines up with a bullet
+   exactly and a long one pushes the text instead of touching it. */
+.host .cm-list-number {
+  min-width: calc(var(--list-slot) - 0.3em);
+  padding-right: 0.3em;
+}
+/* (The spaces a nested item is written with have no rule of their own any more:
+   they are taken out of the flow in inline-format.js. Giving them a zero-width
+   inline-block instead looked equivalent and was not — `overflow: hidden` moves
+   an inline-block's baseline to its bottom edge, so the empty box stood a whole
+   line-height tall and every nested item opened a gap beneath it.) */
 .host .cm-bullet {
   color: #b9bec6;
 }

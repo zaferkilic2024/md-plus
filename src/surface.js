@@ -38,6 +38,7 @@ import {
   toggleBold,
   toggleCode,
   toggleItalic,
+  nestList,
   toggleList,
   toggleQuote,
 } from "./commands.js";
@@ -74,6 +75,19 @@ const formatKeymap = [
   { key: "Mod-Alt-0", run: setHeading(0) },
   { key: "Mod-Shift-l", run: toggleList },
   { key: "Mod-Shift-q", run: toggleQuote },
+  // Tab nests a list item, Shift+Tab brings it back out — and does nothing else
+  // anywhere else. Two guards, for two different lies the key could tell: on a
+  // read-only surface (Aktarma's source) it must not write, and outside a list
+  // it must go on moving the focus the way Tab does in every other window.
+  // `nestList` answers the second question itself; the facet answers the first.
+  {
+    key: "Tab",
+    run: (view) => view.state.facet(EditorView.editable) && nestList(view, true),
+  },
+  {
+    key: "Shift-Tab",
+    run: (view) => view.state.facet(EditorView.editable) && nestList(view, false),
+  },
 ];
 
 /**

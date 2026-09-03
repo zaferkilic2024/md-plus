@@ -284,6 +284,7 @@ export const en = {
   "sc.heading": "Heading",
   "sc.paragraph": "Paragraph",
   "sc.list": "List",
+  "sc.listNest": "Nest / unnest a list item",
   "sc.quote": "Quote",
   "sc.markSel": "Mark selection",
   "sc.travelMark": "Go to next / previous mark",
